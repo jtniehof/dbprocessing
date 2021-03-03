@@ -11,7 +11,6 @@ Module to create the database structure for dbprocessing
 from __future__ import division  # may not be needed but start with it
 
 import os
-from optparse import OptionParser
 
 import sqlalchemy
 from sqlalchemy import schema, types
@@ -173,6 +172,14 @@ class dbprocessing_db(object):
                      data_table.columns['utc_start_time'],
                      data_table.columns['utc_stop_time'], unique=True
 		     )
+
+        data_table = schema.Table('unixtime', metadata,
+                                  schema.Column('file_id', types.Integer,
+                                                schema.ForeignKey('file.file_id'), primary_key=True, index=True),
+                                  schema.Column('unix_start', types.Integer, index=True),
+                                  schema.Column('unix_stop', types.Integer, index=True),
+                                  schema.CheckConstraint('unix_start <= unix_stop'),
+        )
 
         data_table = schema.Table('filefilelink', metadata,
                                   schema.Column('source_file', types.Integer,

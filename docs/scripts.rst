@@ -1,5 +1,17 @@
+********************
 dbprocessing Scripts
-====================
+********************
+
+.. contents::
+   :depth: 1
+   :local:
+
+Maintained scripts
+==================
+These scripts are of general use in dbprocessing and either are fully
+tested and verified to work, or are moving to that status. They are
+maintained as part of dbprocessing. They are in the ``scripts``
+directory.
 
 addFromConfig.py
 ----------------
@@ -15,16 +27,6 @@ format and capability.
 .. option:: -m <dbname>, --mission <dbname> The database to apply the config file to
 .. option:: -v, --verify  Verify the config file then stop
 
-
-addVerboseProvenance.py
------------------------
-.. program:: addVerboseProvenance
-
-Go into the database and get the verbose provenance for a file
-then add that to the global attrs for the file.
-Either putout to the same file or a different file
-
-.. warning:: This code has not been fully tested or used.
 
 clearProcessingFlag.py
 ----------------------
@@ -50,12 +52,15 @@ Build a config file from an existing database.
 
 .. warning:: This is untested and not fully useful yet.
 
+.. _scripts_coveragePlot:
+
 coveragePlot.py
 ---------------
 .. program:: coveragePlot
 
-Creates a coverage plot based on config file input. This script is useful for
-determining which files may be missing from a processing chain.
+Creates a coverage plot based on config file input. This script is
+useful for determining which files may be missing from a processing
+chain. See note on :ref:`scripts_htmlCoverage`.
 
 .. option:: configfile The config file to read.
 
@@ -74,14 +79,16 @@ Create an empty sqlite database for use in dbprocessing.
 
 This is the first step in the setup of a new processing chain.
 
-.. option:: dbname The name of the database to create
+.. option:: -d <dialect>, --dialect <dialect>
 
-dataToIncoming.py
------------------
-Concept, never actually used. supposed to be one script + config file, but we wound up using separate scripts for everything
+   sqlalchemy dialect to use, ``sqlite`` (default) or ``postgresql``
 
-dbOnlyFiles.py:
----------------
+.. option:: dbname
+
+   The name of the database to create
+
+dbOnlyFiles.py
+--------------
 .. program:: dbOnlyFiles.py
 
 Show files in database but not on disk. Additionally, this can remove files from the db that are only in the db.
@@ -94,6 +101,8 @@ Show files in database but not on disk. Additionally, this can remove files from
 .. option:: -n, --newest Only check the newest files
 .. option:: --startID The File id to start on
 .. option:: -v, --verbose Print out each file as it is checked
+
+.. _scripts_DBRunner:
 
 DBRunner.py
 -----------
@@ -156,22 +165,16 @@ triggering such processing.
    (0: interface; 1: quality; 2: revision). Mutually exclusive with -u, -v.
    (Default: run all but do not increment version.)
 
-deleteAllDBFiles.py:
---------------------
+deleteAllDBFiles.py
+-------------------
 .. program:: deleteAllDBFiles
 
 Deletes all file entries in the database.
 
 .. option:: -m <dbname>, --mission <dbname> Selected mission database
 
-deleteAllDBProducts.py:
------------------------
-.. program:: deleteAllDBProducts
-
-Doesn't work, maybe should?
-
-deleteFromDBifNotOnDisk.py:
----------------------------
+deleteFromDBifNotOnDisk.py
+--------------------------
 .. program:: deleteFromDBifNotOnDisk
 
 Finds all files that are in the DB but not found on the DB
@@ -180,48 +183,49 @@ Finds all files that are in the DB but not found on the DB
 .. option:: --fix Remove the files from the DB (make a backup first)
 .. option:: --echo Echo sql queries for debugging
 
-flushProcessQueue.py:
----------------------
+flushProcessQueue.py
+--------------------
 .. program:: flushProcessQueue
 
 Clears the ProcessQueue of a database.
 
 .. option:: Database The name of the database to wipe the ProcesQueue of.
 
-histogramCodes.py:
-------------------
+histogramCodes.py
+-----------------
 may or may not still work, read logs to find out what codes take a long time to run
 
-hopeCoverageHTML.py:
---------------------
-delete
+.. _scripts_htmlCoverage:
 
-hope_query.py:
---------------
-delete
+htmlCoverage.py
+---------------
+either this or :ref:`scripts_coveragePlot` works, not both.
 
-htmlCoverage.py:
-----------------
-either this or coveragePlot works, not both.
+.. _scripts_linkUningested:
 
-link_missing_ql_mag_l2_mag.py:
-------------------------------
-QL "required,", L2 "optional". We don't support "either or but prefer this one", so this links them together and the wrapper handles the actual priority
+linkUningested.py
+-----------------
+.. program:: linkUningested.py
 
-magephem_dataToIncoming.py:
----------------------------
-What it says on tin. Delete?
+Find all files that are in a directory associated with a product and match
+the product's file format, but are not in the database. Make a symbolic
+link to the incoming directory for each file (so they will be ingested
+on next run).
 
-magephem_def_dataToIncoming.py:
--------------------------------
-What it says on tin. Delete?
+.. option:: -m <dbname>, --mission <dbname>
 
-magephem-pre-CoverageHTML.py:
------------------------------
-Probably works. Delete?
+   Selected mission database.
 
-makeLatestSymlinks.py:
-----------------------
+.. option:: -p <product>, --product <product>
+
+   Product name or product ID to check. Optional (default will check all
+   products), but highly recommended, since in particular ingestion of files
+   that are normally created rather than ingested as first-order inputs might
+   lead to odd results. Multiple products can be specified by specifying
+   more than once.
+
+makeLatestSymlinks.py
+---------------------
 .. program:: makeLatestSymlinks
 
 In a given directory, make symlinks to all the newest versions of files into another directory
@@ -233,20 +237,42 @@ In a given directory, make symlinks to all the newest versions of files into ano
 
 .. warning:: There's no documentation on the config file
 
-missingFilesByProduct.py:
--------------------------
+.. _MigrateDB:
+
+MigrateDB.py
+------------
+.. program:: MigrateDB.py
+
+Migrate a database to the latest structure.
+
+Right now this only adds a Unix time table that stores the UTC start/end
+time as seconds since Unix epoch, but planned to extend to support all
+other database changes to date.
+
+Will display all possible changes and prompt for confirmation.
+
+.. option:: -m <dbname>, --mission <dbname>
+
+   Selected mission database
+
+.. option:: -y, --yes
+
+   Process possible changes without asking for confirmation.
+
+missingFilesByProduct.py
+------------------------
 Attempt to reprocess files that are missing, 90% solution, not used much, but did work
 
-missingFiles.py:
-----------------
+missingFiles.py
+---------------
 .. program:: missingFiles
 
 Prints out what's missing, based on noncontiguous date ranges
 
 .. warning:: Maybe works, maybe not
 
-possibleProblemDates.py:
-------------------------
+possibleProblemDates.py
+-----------------------
 .. program:: possibleProblemDates
 
 A database scrub/validation routine.
@@ -255,24 +281,24 @@ A database scrub/validation routine.
 .. option:: --fix Fix the issues (make a backup first)
 .. option:: --echo Echo sql queries for debugging
 
-.. warning:: Worth looking into and cleaning up a bit
+.. warning:: Worth looking into and cleaning up a bit; may have sharp edges.
 
-printInfo.py:
--------------
+printInfo.py
+------------
 .. program:: printInfo
 
 Prints a table of info about files or products or processes.
 
-.. option:: Database The name of the database to print table of
-.. option:: Field Either Product or Mission (more to come)
+.. option:: database The name of the database to print table of
+.. option:: field Either Product or Mission (more to come)
 
-printProcessQueue.py:
----------------------
+printProcessQueue.py
+--------------------
 .. program:: printProcessQueue
 
 Prints the process queue.
 
-.. option:: Database The name of the database to print the queue of
+.. option:: database The name of the database to print the queue of
 .. option:: -o, --output The name of the file to output to(if blank, print to stdout)
 .. option:: --html Output in HTML
 
@@ -282,17 +308,20 @@ ProcessQueue.py
 
 The main thing
 
-purgeFileFromDB.py:
--------------------
+purgeFileFromDB.py
+------------------
 .. program:: purgeFileFromDB
 
-Deletes individual files from the database.
+Deletes individual files from the database. Pending note on this
+"different than delete how? This might be the one to use. purge
+deletes it and everything that depends on it. delete might not, which
+might leave loose ends." Not clear which "delete" this refers to.
 
 .. option:: -m <dbname>, --mission <dbname> Selected mission database
 .. option:: -r, --recursive Recursive removal
 
-reprocessByAll.py:
-------------------
+reprocessByAll.py
+-----------------
 .. program:: reprocessByAll
 
 Goes through the database and adds all the files that are a certain level to the processqueue so that the next ProcessQueue -p will run them
@@ -304,8 +333,8 @@ Goes through the database and adds all the files that are a certain level to the
 
 .. warning:: Should work, probably doesn't
 
-reprocessByCode.py:
--------------------
+reprocessByCode.py
+------------------
 .. program:: reprocessByCode
 
 Goes through the database and adds all the files that went into the code to the processqueue so that the next ProcessQueue -p will run them
@@ -318,11 +347,17 @@ Goes through the database and adds all the files that went into the code to the 
 
 .. warning:: Should work, probably doesn't
 
-reprocessByDate.py:
--------------------
+reprocessByDate.py
+------------------
 .. program:: reprocessByDate
 
-Goes through the database and adds all the files that are in a date range to the processqueue so that the next ProcessQueue -p will run them
+Goes through the database and adds all the files that are in a date
+range to the processqueue so that the next ProcessQueue -p will run
+them.
+
+This code works and is likely the one that should be used most of the
+time for reprocessing files. (Used as the default for do everything on
+a date range, maybe reprocessByAll should go away.
 
 .. option:: -s <date>, --startDate <date> Date to start reprocessing (e.g. 2012-10-02)
 .. option:: -e <date>, --endDate <date> Date to end reprocessing (e.g. 2012-10-25)
@@ -330,8 +365,8 @@ Goes through the database and adds all the files that are in a date range to the
 .. option:: --echo Echo sql queries for debugging
 .. option:: --force Force the reprocessing. Speicify which version number to increment (1,2,3)
 
-reprocessByInstrument.py:
--------------------------
+reprocessByInstrument.py
+------------------------
 .. program:: reprocessByInstrument
 
 Goes through the database and adds all the files that are a certain instrument and level to the processqueue so that the next ProcessQueue -p will run them
@@ -343,11 +378,15 @@ Goes through the database and adds all the files that are a certain instrument a
 .. option:: --echo Echo sql queries for debugging
 .. option:: --force Force the reprocessing. Specify which version number to increment (1,2,3)
 
-reprocessByProduct.py:
-----------------------
-.. program:: reprocessByProduct.
+reprocessByProduct.py
+---------------------
+.. program:: reprocessByProduct
 
-Goes through the database and adds all the files that are a certain product and put then to the processqueue so that the next ProcessQueue -p will run them
+Goes through the database and adds all the files that are a certain product and put then to the processqueue so that the next ProcessQueue -p will run them.
+
+This reprocessing script works and is used all the time; it's been
+tested much more heavily than the others and is used all the time for
+individual processing.
 
 .. option:: -s <date>, --startDate <date> Date to start reprocessing (e.g. 2012-10-02)
 .. option:: -e <date>, --endDate <date> Date to end reprocessing (e.g. 2012-10-25)
@@ -355,16 +394,8 @@ Goes through the database and adds all the files that are a certain product and 
 .. option:: --echo Echo sql queries for debugging
 .. option:: --force Force the reprocessing. Specify which version number to increment (1,2,3)
 
-updateCode.py:
---------------
-New version of code, rerun based on that, better done through config files (although can't be done that way) and then run reprocessByCode
-
-updateProducts.py:
-------------------
-probably broken
-
-updateSHAsum.py:
-----------------
+updateSHAsum.py
+---------------
 .. program:: updateSHAsum
 
 Goes into the database and update the shasum entry for a file that is changed after ingestion.
@@ -372,18 +403,85 @@ Goes into the database and update the shasum entry for a file that is changed af
 .. option:: infile File to update the shasum of
 .. option:: -m <dbname>, --mission <dbname> Selected mission database
 
-weeklyReport.py:
-----------------
-unused, probably broken, delete
+updateUnixTime.py
+-----------------
+.. program:: updateUnixTime.py
 
-writeDBhtml.py:
+Rewrites all Unix timestamps in a file, recalculating them from the UTC
+start/stop time. This is not needed if adding a Unix timestamp table
+to an existing database (see :ref:`MigrateDB`); it is only required
+if the algorithm for populating the Unix timestamps changes and a database
+has been created with the older algorithm.
+
+.. option:: -m <dbname>, --mission <dbname>
+
+   Selected mission database
+
+
+Examples
+========
+These scripts are meant as reference for specific tasks that might be
+required for a particular mission. They may not be fully tested or may
+be mission-specific. They are not generally maintained; some are
+candidates for eventually transferring to maintained scripts. They are
+in the directory ``examples/scripts``.
+
+addVerboseProvenance.py
+-----------------------
+.. program:: addVerboseProvenance
+
+Go into the database and get the verbose provenance for a file
+then add that to the global attrs for the CDF file.
+Either put out to the same file or a different file
+
+.. warning:: This code has not been fully tested or used; never worked.
+
+dataToIncoming.py
+-----------------
+Concept, never actually used. supposed to be one script + config file
+to handle all incoming data for RBSP-ECT, but we wound up using
+separate scripts for everything
+
+hopeCoverageHTML.py
+-------------------
+delete
+
+hope_query.py
+-------------
+delete
+
+link_missing_ql_mag_l2_mag.py
+-----------------------------
+RBSP-ECT had some inputs available initially in a quicklook format and
+then later in a definitive level 2 format. The database treated QL as
+"required,", L2 "optional". We don't support "either or but prefer
+this one", so this links them together and the wrapper handles the
+actual priority
+
+magephem-pre-CoverageHTML.py
+----------------------------
+Probably works. Delete?
+
+updateCode.py
+-------------
+New version of code, rerun based on that, better done through config files (although can't be done that way) and then run reprocessByCode
+
+updateProducts.py
+-----------------
+probably broken
+
+weeklyReport.py
 ---------------
 unused, probably broken, delete
 
-writeProcessConf.py:
---------------------
+writeDBhtml.py
+--------------
+unused, probably broken, delete
+
+writeProcessConf.py
+-------------------
 probably not used
 
-writeProductsConf.py:
----------------------
+writeProductsConf.py
+--------------------
 probably not used

@@ -45,14 +45,14 @@ extensions = [
     'sphinx.ext.coverage',
     imgmath,
     'sphinx.ext.viewcode',
-    #'numpydoc',
+    'numpydoc',
     'sphinx.ext.inheritance_diagram',
     'sphinx.ext.autosummary',
     'sphinx.ext.extlinks',
 ]
 
 autosummary_generate = True
-#numpydoc_show_class_members = False
+numpydoc_show_class_members = False
 
 # # make it so TODOs will work
 # todo_include_todos = True
@@ -315,6 +315,7 @@ texinfo_documents = [
 intersphinx_mapping = {
     'python': ('https://docs.python.org/2/', None),
     'sphinx': ('https://www.sphinx-doc.org/en/master/', None),
+    'sqlalchemy': ('https://docs.sqlalchemy.org/en/stable/', None),
 }
 
 #Fix for https://github.com/sphinx-doc/sphinx/issues/1585

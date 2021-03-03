@@ -307,7 +307,8 @@ class DBUtilsGetTests(TestSetup):
 
     def test_openDB1(self):
         """__init__ has an exception to test"""
-        self.assertRaises(ValueError, DButils.DButils, 'i do not exist')
+        self.assertRaises(ValueError, DButils.DButils, 'i do not exist',
+                          engine='sqlite')
 
     def test_openDB2(self):
         """__init__ bad engine"""
@@ -602,6 +603,12 @@ class DBUtilsGetTests(TestSetup):
         actual = sorted([v.filename for v in val])
         self.assertEqual(expected, actual)
 
+    def test_getFilesUTCDayUnixTime(self):
+        """getFiles with a single UTC day time, lookup by Unix time"""
+        self.dbu.addUnixTimeTable()
+        # Run all the same checks
+        self.test_getFilesUTCDay()
+
     def test_getFilesStartTime(self):
         """getFiles with a start time"""
         expected = [
@@ -617,6 +624,32 @@ class DBUtilsGetTests(TestSetup):
         actual = sorted([v.filename for v in val])
         self.assertEqual(expected, actual)
 
+    def test_getFilesStartTimeUnixTime(self):
+        """getFiles with a start time, lookup by Unix time"""
+        self.dbu.addUnixTimeTable()
+        self.test_getFilesStartTime()
+
+    def test_getFilesStartTimeFractional(self):
+        """getFiles looked up by Unix time with a fractional second"""
+        self.dbu.addUnixTimeTable()
+        kwargs = {
+            'filename': "rbspa_int_ect-mageisM35-hr-L1_20100101_v1.0.0.cdf",
+            'data_level': 1.0,
+            'version': Version.Version(1, 0, 0),
+            'file_create_date': datetime.date(2010, 1, 1),
+            'exists_on_disk': 1,
+            'utc_file_date': datetime.date(2010, 1, 1),
+            'utc_start_time': datetime.datetime(2010, 1, 1),
+            # Weird stop time to trigger rounding errors
+            'utc_stop_time': datetime.datetime(2010, 1, 1, 23, 0, 0, 600000),
+            'product_id': 4,
+            'shasum': '0'
+        }
+        fID = self.dbu.addFile(**kwargs)
+        start_time = datetime.datetime(2010, 1, 1, 23, 0, 0, 200000)
+        val = self.dbu.getFiles(startTime=start_time, product=4)
+        self.assertEqual([fID], [v.file_id for v in val])
+
     def test_getFilesByProductTime(self):
         """getFiles by the UTC date of data"""
         expected = ['ect_rbspb_0382_381_04.ptp.gz',
@@ -626,6 +659,11 @@ class DBUtilsGetTests(TestSetup):
                                              newest_version=True)
         actual = sorted([v.filename for v in val])
         self.assertEqual(expected, actual)
+
+    def test_getFilesByProductTimeUnixTime(self):
+        """getFiles by the UTC date of data, lookup by Unix time"""
+        self.dbu.addUnixTimeTable()
+        self.test_getFilesByProductTime()
 
     def test_getFilesByProductDate(self):
         """getFilesByProductDate"""
@@ -1411,6 +1449,66 @@ class TestWithtestDB(unittest.TestCase):
         self.assertEqual(1, i.product_id)
         self.assertEqual('0', i.shasum)
 
+    def test_addFileNonDatetimeStart(self):
+        """Add a file with a non-datetime utc_start_time"""
+        v = Version.Version(1, 0, 0)
+        kwargs = {
+            'filename': "testing_file_1.0.0.file",
+            'data_level': 0,
+            'version': v,
+            'file_create_date': datetime.date(2010, 1, 1),
+            'exists_on_disk': 1,
+            'utc_file_date': datetime.date(2010, 1, 1),
+            'utc_start_time': datetime.date(2010, 1, 1),
+            'utc_stop_time': datetime.datetime(2010, 1, 2, 0, 0, 0),
+            'product_id': 1,
+            'shasum': '0'
+        }
+        # Make with a start date instead of datetime
+        fID = self.dbu.addFile(**kwargs)
+        f = self.dbu.getEntry('File', fID)
+        self.assertEqual(datetime.datetime(2010, 1, 1),
+                         f.utc_start_time)
+        # Do the same thing with the Unix time table
+        self.dbu.addUnixTimeTable()
+        kwargs.update({
+            'filename': "testing_file_1.1.0.file",
+            'version': Version.Version(1, 1, 0)
+        })
+        fID = self.dbu.addFile(**kwargs)
+        r = self.dbu.getEntry('Unixtime', fID)
+        self.assertEqual(1262304000, r.unix_start)
+
+    def test_addFileUnixTime(self):
+        """Tests if addFile populates Unix time"""
+        self.dbu.addUnixTimeTable()
+        fID = self.addGenericFile(1)
+        r = self.dbu.getEntry('Unixtime', fID)
+        self.assertEqual(1262304000, r.unix_start)
+        self.assertEqual(1262390400, r.unix_stop)
+
+    def test_addFileNearDay(self):
+        """Make sure conversion to unix time doesn't change day"""
+        self.dbu.addUnixTimeTable()
+        kwargs = {
+            'filename': "testing_file_1.0.0.file",
+            'data_level': 0,
+            'version': Version.Version(1, 0, 0),
+            'file_create_date': datetime.date(2010, 1, 1),
+            'exists_on_disk': 1,
+            'utc_file_date': datetime.date(2010, 1, 1),
+            'utc_start_time': datetime.datetime(2010, 1, 1),
+            'utc_stop_time': datetime.datetime(2010, 1, 1, 23, 59, 59, 600000),
+            'product_id': 1,
+            'shasum': '0'
+        }
+        fID = self.dbu.addFile(**kwargs)
+        r = self.dbu.getEntry('Unixtime', fID)
+        # Convert back from Unix time and make sure same date
+        self.assertEqual(datetime.date(2010, 1, 1),
+                         (datetime.datetime(1970, 1, 1)
+                          + datetime.timedelta(seconds=r.unix_stop)).date())
+
     def test_addInstrument(self):
         """Tests if addInstrument is succesful"""
         iID = self.dbu.addInstrument(instrument_name="testing_{MISSION}_{SPACECRAFT}_Instrument",
@@ -1885,6 +1983,26 @@ class TestWithtestDB(unittest.TestCase):
         self.assertEqual(
             "'DButils' object has no attribute 'Nonexistent'",
             cm.exception.message)
+
+    def testAddUnixTimeTable(self):
+        """Add the table with Unix time"""
+        self.dbu.addUnixTimeTable()
+        r = self.dbu.getEntry('Unixtime', 1)
+        f = self.dbu.getEntry('File', 1)
+        # Verify the preconditions, UTC times are what expect
+        self.assertEqual(
+            datetime.datetime(2016, 1, 2),
+            f.utc_start_time)
+        self.assertEqual(
+            datetime.datetime(2016, 1, 3),
+            f.utc_stop_time)
+        # Verify the Unix time conversions
+        self.assertEqual(1451692800, r.unix_start)
+        self.assertEqual(1451779200, r.unix_stop)
+        with self.assertRaises(RuntimeError) as cm:
+            self.dbu.addUnixTimeTable()
+        self.assertEqual('Unixtime table already seems to exist.',
+                         str(cm.exception))
 
 
 if __name__ == "__main__":

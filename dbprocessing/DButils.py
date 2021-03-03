@@ -6,12 +6,18 @@ import datetime
 import pdb
 import glob
 import itertools
+import os
 import os.path
 import pwd
 import socket  # to get the local hostname
 import sys
 from collections import namedtuple
 from operator import itemgetter, attrgetter
+try:
+    import urllib.parse #python 3
+except ImportError:
+    import urllib
+    urllib.parse = urllib
 
 import sqlalchemy
 import sqlalchemy.sql.expression
@@ -29,6 +35,7 @@ from sqlalchemy import and_
 from .Diskfile import calcDigest, DigestError
 from . import DBlogging
 from . import DBstrings
+from . import tables
 from . import Version
 from . import Utils
 from . import __version__
@@ -60,13 +67,44 @@ class DBNoData(Exception):
     pass
 
 
+def postgresql_url(databasename):
+    """Build postgresl database URL
+
+    Environment variable ``PGUSER`` is required. Will also use ``PGHOST``,
+    ``PGPORT`` (requires ``PGHOST``), ``PGPASSWORD`` to define database
+    server to connect to. Anything unspecified is postgresql default.
+
+    Parameters
+    ----------
+    databasename : str
+        Name of the database
+
+    Returns
+    -------
+    str
+        Full postgresql URL, suitable for use in
+        :func:`~sqlalchemy.engine.create_engine`
+    """
+    # If no host, defaults to Unix domain on localhost.
+    hostport = os.environ.get('PGHOST', '')
+    if 'PGPORT' in os.environ:
+        hostport = '{}:{}'.format(hostport, os.environ['PGPORT'])
+    userpass = os.environ['PGUSER']
+    if 'PGPASSWORD' in os.environ:
+        userpass = '{}:{}'.format(userpass, urllib.parse.quote_plus(
+                      os.environ['PGPASSWORD']))
+    db_url = 'postgresql://{userpass}@{hostport}/{database}'.format(
+        userpass=userpass, hostport=hostport, database=databasename)
+    return db_url
+
+
 class DButils(object):
     """
     Utility routines for the DBProcessing class, all of these may be user called but are meant to
     be internal routines for DBProcessing
     """
 
-    def __init__(self, mission='Test', db_var=None, echo=False, engine='sqlite'):
+    def __init__(self, mission='Test', db_var=None, echo=False, engine=None):
         """
         Initialize the DButils class
 
@@ -75,12 +113,17 @@ class DButils(object):
         :param db_var: Does nothing.
         :param echo: if True, the Engine will log all statements as well as a repr() of their parameter lists to the logger
         :type echo: bool
-        :param engine: DB engine to connect to
+        :param engine: DB engine to connect to (e.g sqlite, postgresql).
+                       Defaults to sqlite if mission is an existing file, else
+                       postgresql.
         :type engine: str
         """
         self.dbIsOpen = False
         if mission is None:
             raise (DBError("Must input database name to create DButils instance"))
+        if engine is None:
+            engine = 'sqlite' if os.path.isfile(os.path.expanduser(mission))\
+                     else 'postgresql'
         self.mission = mission
         # Expose the format/regex routines of DBformatter
         fmtr = DBstrings.DBformatter()
@@ -145,13 +188,18 @@ class DButils(object):
         """
         if self.dbIsOpen == True:
             return
-        try:
+        if engine == 'sqlite':
             if not os.path.isfile(os.path.expanduser(self.mission)):
                 raise (ValueError("DB file specified doesn't exist"))
-            engineIns = sqlalchemy.create_engine('{0}:///{1}'.format(engine, os.path.expanduser(self.mission)),
-                                                 echo=echo)
+            db_url = '{0}:///{1}'.format(engine, os.path.expanduser(
+                self.mission))
             self.mission = os.path.abspath(os.path.expanduser(self.mission))
-
+        elif engine == 'postgresql':
+            db_url = postgresql_url(self.mission)
+        else:
+            raise DBError('Unknown engine {}'.format(engine))
+        try:
+            engineIns = sqlalchemy.create_engine(db_url, echo=echo)
             DBlogging.dblogger.info("Database Connection opened: {0}  {1}".format(str(engineIns), self.mission))
 
         except (DBError, ArgumentError):
@@ -1455,6 +1503,8 @@ class DButils(object):
         :return: file_id of the newly inserted file
         :rtype: long
         """
+        utc_start_time = Utils.toDatetime(utc_start_time)
+        utc_stop_time = Utils.toDatetime(utc_stop_time)
         d1 = self.File()
         d1.filename = filename
         d1.utc_file_date = utc_file_date
@@ -1482,6 +1532,23 @@ class DButils(object):
             d1.newest_version = False
 
         self.session.add(d1)
+        if hasattr(self, 'Unixtime'):
+            # Populate file_id, but still allow rollback of file insert
+            self.session.flush()
+            unx0 = datetime.datetime(1970, 1, 1)
+            r = self.Unixtime()
+            r.file_id = d1.file_id
+            # Round times down so they don't slide into next second
+            # (and potentially next day)
+            # If changed, also change getFiles, addUnixTimeTable,
+            # updateUnixTime.py
+            r.unix_start = None if utc_start_time is None \
+                           else int((utc_start_time - unx0)\
+                                    .total_seconds())
+            r.unix_stop = None if utc_stop_time is None\
+                          else int((utc_stop_time - unx0)\
+                                   .total_seconds())
+            self.session.add(r)
         self.commitDB()
         return d1.file_id
 
@@ -1737,6 +1804,23 @@ class DButils(object):
         # if a datetime.datetime comes in this does not work, make them datetime.date
         startDate = Utils.datetimeToDate(startDate)
         endDate = Utils.datetimeToDate(endDate)
+        unixtime = hasattr(self, 'Unixtime')
+        # Truncate start/end seconds to match the truncation in the db.
+        # Might result in false matches (e.g requested stop time is 1.2
+        # and non-truncated start time of file is 1.6) but better than
+        # missing a file that does overlap (e.g requested start time is 1.2
+        # and non-truncated file start is 1.6, truncates to 1.0)
+        # If changed, also change addFile, addUnixTimeTable, updateUnixTime.py
+        if startTime is not None:
+            startTime = Utils.toDatetime(startTime)
+            if unixtime:
+                startTime = int((startTime - datetime.datetime(1970, 1, 1))\
+                                .total_seconds())
+        if endTime is not None:
+            endTime = Utils.toDatetime(endTime, end=True)
+            if unixtime:
+                endTime = int((endTime - datetime.datetime(1970, 1, 1))\
+                              .total_seconds())
         
         files = self.session.query(self.File)
 
@@ -1767,10 +1851,14 @@ class DButils(object):
         elif endDate is not None: # End date only
             files = files.filter(self.File.utc_file_date <= endDate)
 
+        if unixtime and (startTime is not None or endTime is not None):
+            files = files.join(self.Unixtime)
         if startTime is not None:
-            files = files.filter(self.File.utc_stop_time >= Utils.toDatetime(startTime))
+            files = files.filter((self.Unixtime.unix_stop if unixtime
+                                  else self.File.utc_stop_time) >= startTime)
         if endTime is not None:
-            files = files.filter(self.File.utc_start_time <= Utils.toDatetime(endTime, end=True))
+            files = files.filter((self.Unixtime.unix_start if unixtime
+                                  else self.File.utc_start_time) <= endTime)
 
         if newest_version:
             files = files.order_by(self.File.interface_version, self.File.quality_version, self.File.revision_version)
@@ -2613,4 +2701,35 @@ class DButils(object):
         else: #no after_flag provided, or the column is empty in db
             setattr(entry, column, original.replace(old_str, new_str))
             
+        self.commitDB()
+
+    def addUnixTimeTable(self):
+        """Add a table containing a file's Unix start/stop time.
+
+        Used for migrating databases; doing file searches based on the
+        Unix time is faster than the UTC timestamp. This will also
+        populate the time columns from a file's UTC start/stop time.
+
+        Raises
+        ------
+        RuntimeError
+            If the Unix time table already exists
+        """
+        if hasattr(self, 'Unixtime'):
+            raise RuntimeError('Unixtime table already seems to exist.')
+        unixtime = sqlalchemy.Table(
+            'unixtime', self.metadata, *tables.definition('unixtime'))
+        self.metadata.create_all(tables=[unixtime])
+        # Make object for the new table definition (skips existing tables)
+        self._createTableObjects()
+        unx0 = datetime.datetime(1970, 1, 1)
+        for f in self.getFiles(): # Populate the times
+            r = self.Unixtime()
+            r.file_id = f.file_id
+            # If changed, also change addFile, getFiles, updateUnixTime.py
+            r.unix_start = int((f.utc_start_time - unx0)\
+                               .total_seconds())
+            r.unix_stop = int((f.utc_stop_time - unx0)\
+                              .total_seconds())
+            self.session.add(r)
         self.commitDB()
