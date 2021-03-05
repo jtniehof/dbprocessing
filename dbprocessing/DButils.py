@@ -14,7 +14,7 @@ import sys
 from collections import namedtuple
 from operator import itemgetter, attrgetter
 try:
-    import urllib.parse #python 3
+    import urllib.parse  # python 3
 except ImportError:
     import urllib
     urllib.parse = urllib
@@ -195,7 +195,7 @@ class DButils(object):
                 self.mission))
             self.mission = os.path.abspath(os.path.expanduser(self.mission))
         elif engine == 'postgresql':
-            db_url = postgresql_url(self.mission)
+            db_url = postgresql_url(os.path.basename(self.mission))
         else:
             raise DBError('Unknown engine {}'.format(engine))
         try:
@@ -214,7 +214,7 @@ class DButils(object):
             self.metadata = metadata
             self.session = session
             self.dbIsOpen = True
-            if verbose: print("DB is open: %s" % (engineInsR))
+            if verbose: print("DB is open: %s" % (engineIns))
             return
         except Exception as msg:
             raise (DBError('Error opening database: %s' % (msg)))
@@ -547,7 +547,7 @@ class DButils(object):
                 pq1.version_bump = version_bump
                 self.session.add(pq1)
                 DBlogging.dblogger.debug("File added to process queue {0}:{1}".format(fileid, '---'))
-                
+
             if commit:
                 self.commitDB()  # commit once for all the adds
         return len(files_to_add)
@@ -1110,7 +1110,7 @@ class DButils(object):
         self.session.delete(proc)
         if commit:
             self.commitDB()
-        
+
 
     def addFilefilelink(self,
                         resulting_file_id,
@@ -1821,12 +1821,12 @@ class DButils(object):
             if unixtime:
                 endTime = int((endTime - datetime.datetime(1970, 1, 1))\
                               .total_seconds())
-        
+
         files = self.session.query(self.File)
 
         if product is not None:
             files = files.filter_by(product_id=product)
-        
+
         if level is not None:
             files = files.filter_by(data_level=level)
 
@@ -1863,7 +1863,7 @@ class DButils(object):
         if newest_version:
             files = files.order_by(self.File.interface_version, self.File.quality_version, self.File.revision_version)
             x = files.limit(limit).all()
-            
+
             # Last item wins. https://stackoverflow.com/questions/39678672/is-a-python-dict-comprehension-always-last-wins-if-there-are-duplicate-keys
             out = dict([((i.product_id, i.utc_file_date), i) for i in x])
             return list(out.values())
@@ -2278,9 +2278,9 @@ class DButils(object):
                 retval[v] = sq[0][ii]
 
         elif table.capitalize() == 'Code':
-            
+
             in_id = self.getCodeID(in_id)
-            
+
             # symplified version for plots (where there is no output product)
             vars = ['code', 'process']
             sq = (self.session.query(self.Code, self.Process)
@@ -2289,7 +2289,7 @@ class DButils(object):
 
             if not sq:  # did not find a match this is a dberror
                 raise (DBError("code {0} did not have a traceback, this is a problem, fix it".format(in_id)))
-            
+
             if sq[0][1].output_timebase != 'RUN':
                 vars = ['code', 'process', 'product', 'instrument',
                         'instrumentproductlink', 'satellite', 'mission']
@@ -2489,7 +2489,7 @@ class DButils(object):
         f_ids = self.session.query(self.Filefilelink.source_file).filter_by(resulting_file=file_id).all()
         if not f_ids:
             return []
-            
+
         f_ids = map(itemgetter(0), f_ids)
         if id_only:
             return f_ids
@@ -2583,7 +2583,7 @@ class DButils(object):
 
         .. note:: Written and tested for code table. Not thoroughly
                   tested for others.
-        
+
         :param str table: Name of the table to edit.
         :param int my_id: Specifies row to edit; most commonly the numerical
                           ID (primary key) but also supports string matching
@@ -2700,7 +2700,7 @@ class DButils(object):
             setattr(entry, column, ' '.join(parts))
         else: #no after_flag provided, or the column is empty in db
             setattr(entry, column, original.replace(old_str, new_str))
-            
+
         self.commitDB()
 
     def addUnixTimeTable(self):

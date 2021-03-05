@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
+from __future__ import unicode_literals
+import os
 
 """Unit tests for dbprocessing.dbprocessing module"""
 
@@ -25,16 +27,22 @@ class ProcessQueueTestsBase(unittest.TestCase, dbp_testing.AddtoDBMixin):
     def setUp(self):
         """Make a db and open it so have something to work with"""
         super(ProcessQueueTestsBase, self).setUp()
-        #self.td = tempfile.mkdtemp()
-        #shutil.copy2(
-        #    os.path.join(os.path.dirname(__file__), 'emptyDB.sqlite'),
-        #    self.td)
 
-        self.td = 'unh'
+        if 'PGDATABASE' in os.environ.keys():
+            self.td = os.environ['PGDATABASE']
+        else:
+            self.td = tempfile.mkdtemp()
+            shutil.copy2(
+                os.path.join(os.path.dirname(__file__), 'emptyDB.sqlite'),
+                self.td)
+
         # Set up the baseline mission environment, BEFORE making processqueue
         self.addSkeletonMission()
-        self.pq = dbprocessing.dbprocessing.ProcessQueue(
-            os.path.join(self.td))
+        if 'PGDATABASE' in os.environ.keys():
+            self.pq = dbprocessing.dbprocessing.ProcessQueue(self.td)
+        else:
+            self.pq = dbprocessing.dbprocessing.ProcessQueue(
+                    os.path.join(self.td, 'emptyDB.sqlite'))
         self.dbu = self.pq.dbu
 
     def tearDown(self):
@@ -43,9 +51,9 @@ class ProcessQueueTestsBase(unittest.TestCase, dbp_testing.AddtoDBMixin):
         #del self.pq
         #shutil.rmtree(self.td)
 
-        for table in reversed(self.dbu.metadata.sorted_tables): 
-            self.dbu.session.execute(table.delete()); 
-            self.dbu.session.commit() 
+        for table in reversed(self.dbu.metadata.sorted_tables):
+            self.dbu.session.execute(table.delete());
+            self.dbu.session.commit()
 
         super(ProcessQueueTestsBase, self).tearDown()
 
@@ -80,8 +88,7 @@ class BuildChildrenTests(ProcessQueueTestsBase):
 
     def testSimple(self):
         """Single daily file making another single daily file"""
-        import pdb
-        pdb.set_trace()
+
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)
@@ -93,11 +100,10 @@ class BuildChildrenTests(ProcessQueueTestsBase):
             '{}/data/junk/level_0_20120101_v1.0.0'.format(self.td),
             'level_1_20120101_v1.0.0']]
         self.checkCommandLines(fid, expected)
-        
+
     def testSingleDailyUpdate(self):
         """Single daily file making another, new version appears"""
-        import pdb
-        pdb.set_trace()
+
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)
@@ -119,12 +125,9 @@ class BuildChildrenTests(ProcessQueueTestsBase):
     def testYesterdayNewFile(self):
         """Daily file, use yesterday
 
-        import pdb
-        pdb.set_trace()
         Does not make the day with only yesterday as input
         """
-        import pdb
-        pdb.set_trace()
+
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)
@@ -150,8 +153,6 @@ class BuildChildrenTests(ProcessQueueTestsBase):
 
         Both days are made; second day has yesterday input
         """
-        import pdb
-        pdb.set_trace()
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)
@@ -195,8 +196,7 @@ class BuildChildrenTests(ProcessQueueTestsBase):
 
         Does not make the day with only yesterday as input
         """
-        import pdb
-        pdb.set_trace()
+
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)
@@ -225,8 +225,7 @@ class BuildChildrenTests(ProcessQueueTestsBase):
 
         Does not make the day with only yesterday updated
         """
-        import pdb
-        pdb.set_trace()
+
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)
@@ -263,6 +262,7 @@ class BuildChildrenTests(ProcessQueueTestsBase):
 
         Does not make the day with only tomorrow as input
         """
+
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)
@@ -288,6 +288,7 @@ class BuildChildrenTests(ProcessQueueTestsBase):
 
         Both days are made; first day has tomorrow input
         """
+
         l0pid = self.addProduct('level 0')
         l1pid = self.addProduct('level 1', level=1)
         l01process, l01code = self.addProcess('level 0-1', l1pid)

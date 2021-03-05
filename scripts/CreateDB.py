@@ -31,6 +31,7 @@ class dbprocessing_db(object):
         self.overwrite = overwrite
         self.dialect = dialect
         self.dbIsOpen = False
+
         if create:
             if os.path.isfile(filename) != True:
                 self.createDB()

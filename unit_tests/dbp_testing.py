@@ -140,12 +140,16 @@ class AddtoDBMixin(object):
         Assumes self.td has the test/temp directory path (str),
         will populate self.instrument_ids for a list of instruments.
         """
-        # dbu = dbprocessing.DButils.DButils(os.path.join(
-        #     self.td, 'emptyDB.sqlite'))
-        dbu = dbprocessing.DButils.DButils(self.td)
-        for table in reversed(dbu.metadata.sorted_tables):
-            dbu.session.execute(table.delete());
-            dbu.session.commit()
+
+        if os.path.exists(os.path.join(self.td, 'emptyDB.sqlite')):
+            dbu = dbprocessing.DButils.DButils(os.path.join(
+                self.td, 'emptyDB.sqlite'))
+        else:
+            self.td = os.getcwd() + "/" + self.td
+            dbu = dbprocessing.DButils.DButils(self.td)
+            for table in reversed(dbu.metadata.sorted_tables):
+                dbu.session.execute(table.delete())
+                dbu.session.commit()
         mission_id = dbu.addMission(
             'Test mission',
             os.path.join(self.td, 'data'),
