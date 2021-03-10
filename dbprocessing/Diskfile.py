@@ -4,8 +4,8 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import glob
-import hashlib
 import os
+import subprocess
 
 from . import DBlogging
 
@@ -144,13 +144,15 @@ def calcDigest(infile):
     :rtype: str
 
     """
-    m = hashlib.sha1()
     try:
-        with open(infile, 'rb') as f:
-            m.update(f.read())
+        cmd = "sha1sum " + infile
+        p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        p.wait()
     except IOError:
         raise(DigestError("File not found: {0}".format(infile)))
         
-    DBlogging.dblogger.debug("digest calculated: {0}, file: {1} ".format(m.hexdigest(), infile))
+    result = out.split()[0]
+    DBlogging.dblogger.debug("digest calculated: {0}, file: {1} ".format(result, infile))
 
-    return m.hexdigest()
+    return result

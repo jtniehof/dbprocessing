@@ -148,7 +148,8 @@ if __name__ == "__main__":
     if len(missions) > 1:
         raise (NotImplementedError("Can't yet handle multi mission db"))
     mission = missions[0]
-    mission = dbu.getEntry('Mission', mission)
+    mission_id = dbu.getMissionID(mission)
+    mission = dbu.getEntry('Mission', mission_id)
     for d in dir(mission):
         if d[0] == '_': continue
         out.set('mission', d, str(getattr(mission, d)))
@@ -244,6 +245,11 @@ if __name__ == "__main__":
         out.add_section(pname)
         for d in dir(p['process']):
             if d[0] == '_': continue
+            if d == 'output_product':
+                product_id = str(getattr(p['process'], d))
+                product_name  = dbu.getEntry('Product', product_id).product_name
+                out.set(pname, d, 'product_' + product_name)
+                continue
             out.set(pname, d, str(getattr(p['process'], d)))
         # loop over the input_product key and add them to the conf
         ip_req_counter = 1

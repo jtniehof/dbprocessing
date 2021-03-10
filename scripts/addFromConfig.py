@@ -17,13 +17,12 @@
 # <- add the prod
 # <- create the inst_prod link
 
-import collections
 import ConfigParser
 import os
 import shutil
 import sys
 import tempfile
-import argparse
+from optparse import OptionParser
 from ast import literal_eval as make_tuple
 
 from sqlalchemy.orm.exc import NoResultFound
@@ -31,13 +30,9 @@ from sqlalchemy.orm.exc import NoResultFound
 from dbprocessing import DButils
 
 expected = ['mission', 'satellite', 'instrument', 'product', 'process']
-# All keywords that are permitted in a section (optional or required)
 expected_keyword = { }
-# Subset of expected_keyword that are permitted not required
-optional_keyword = collections.defaultdict(list)
 expected_keyword['mission'] = ['incoming_dir', 'mission_name', 'rootdir',
                                'codedir', 'inspectordir', 'errordir']
-optional_keyword['mission'] = ['codedir', 'inspectordir', 'errordir']
 expected_keyword['satellite'] = ['satellite_name']
 expected_keyword['instrument'] = ['instrument_name']
 expected_keyword['product'] = ['product_name', 'relative_path',
@@ -108,13 +103,12 @@ def _keysCheck(conf, section):
     else:
         section_ex = section
     keys = expected_keyword[section_ex]
-    optional = optional_keyword[section_ex]
     for k in keys:
-        if k.startswith(('required_input', 'optional_input')) \
-           or k in optional:
+        if k.startswith('required_input') or k.startswith('optional_input'):
             continue
-        if k not in conf[section]:
-            raise (ValueError('Required key: "{0}" was not found in [{1}] section'.format(k, section)))
+        else:
+            if k not in conf[section]:
+                raise (ValueError('Required key: "{0}" was not found in [{1}] section'.format(k, section)))
 
 
 def _keysRemoveExtra(conf, section):
@@ -181,9 +175,9 @@ def _fileTest(filename):
         raise (ValueError('Specified section(s): "{0}" is repeated!'.format(seen_twice)))
 
 
-def addStuff(cfg, options):
+def addStuff(cfg, options, instrument):
     # setup the db
-    dbu = DButils.DButils(options.mission)
+    dbu = DButils.DButils(options.mission, instrument)
     # is the mission in the DB?  If not add it
     if cfg['mission']['mission_name'] not in dbu.getMissions():  # was it there?
         # add it
@@ -195,9 +189,9 @@ def addStuff(cfg, options):
 
     # is the satellite in the DB?  If not add it
     try:
-        satellite_id = dbu.getEntry('Satellite', cfg['satellite']['satellite_name']).satellite_id
+        satellite_id = dbu.getSatelliteIDy(cfg['satellite']['satellite_name'])
         print('Found Satellite: {0} {1}'.format(satellite_id, dbu.getEntry('Satellite', satellite_id).satellite_name))
-    except (DButils.DBNoData, NoResultFound):
+    except BaseException:
         # add it
         satellite_id = dbu.addSatellite(mission_id=mission_id, **cfg['satellite'])
         print('Added Satellite: {0} {1}'.format(satellite_id, dbu.getEntry('Satellite', satellite_id).satellite_name))
@@ -212,7 +206,7 @@ def addStuff(cfg, options):
         print(
             'Found Instrument: {0} {1}'.format(instrument_id,
                                                dbu.getEntry('Instrument', instrument_id).instrument_name))
-    except (DButils.DBNoData, ValueError, NoResultFound):
+    except (DButils.DBNoData, ValueError, AttributeError, NoResultFound):
         # add it
         instrument_id = dbu.addInstrument(satellite_id=satellite_id, **cfg['instrument'])
         print(
@@ -275,7 +269,7 @@ def addStuff(cfg, options):
             # now add the productprocesslink
             tmp = dict((k, cfg[p][k]) for k in cfg[p] if 'input' in k)
             for k in tmp:
-                ppl = dbu.addproductprocesslink(cfg[tmp[k][0]]['product_id'], p_id, 'optional' in k, tmp[k][1], tmp[k][2])
+                ppl = dbu.addproductprocesslink(cfg[tmp[k][0]]['product_id'], p_id, 'optional' in k) 
                 print('Added Productprocesslink: {0}'.format(ppl))
 
             # if the process was not there we will assume the code is not either (requires a process_id)
@@ -298,17 +292,18 @@ def addStuff(cfg, options):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--mission", type=str,
-                        help="mission to connect to", default='')
-    parser.add_argument("-v", "--verify", action='store_true',
-                        help="Don't do anything other than verify the config file", default=False)
-    parser.add_argument('config_file', action='store', type=str,
-                        help='Configuration file to read from')
+    usage = "usage: %prog [options] -m mission_db filename"
+    parser = OptionParser(usage=usage)
+    parser.add_option("-m", "--mission", dest="mission", type="string",
+                      help="mission to connect to", default='')
+    parser.add_option("-v", "--verify", dest="verify", action='store_true',
+                      help="Don't do anything other than verify the config file", default=False)
 
-    options = parser.parse_args()
+    (options, args) = parser.parse_args()
+    if len(args) != 1:
+        parser.error("incorrect number of arguments")
 
-    filename = os.path.expanduser(options.config_file)
+    filename = os.path.expanduser(args[0])
 
     if not os.path.isfile(filename):
         parser.error("file: {0} does not exist or is not readable".format(filename))
@@ -340,21 +335,20 @@ if __name__ == "__main__":
         # recheck the temp file
         conf = readconfig(tmpf.name)
         configCheck(conf)
-        if os.path.isfile(options.mission): # sqlite
-            # do all our work on a temp version of the DB, if it all works, move tmp on top of existing
-            #   if it fails just delete the tmp and do nothing
-            orig_db = options.mission
-            tmp_db = tempfile.NamedTemporaryFile(delete=False, suffix='_temp_db')
-            tmp_db.file.writelines(cfg)
-            tmp_db.close()
-            shutil.copy(orig_db, tmp_db.name)
-            options.mission = tmp_db.name
-            try:
-                addStuff(conf, options)
-                shutil.copy(tmp_db.name, orig_db)
-            finally:
-                os.remove(tmp_db.name)
-        else: # postgresql
-            addStuff(conf, options)
+        ### The following is commented out as a Postgres database is implemented.
+        # do all our work on a temp version of the DB, if it all works, move tmp on top of existing
+        #   if it fails just delete the tmp and do nothing
+        # orig_db = options.mission
+        # tmp_db = tempfile.NamedTemporaryFile(delete=False, suffix='_temp_db')
+        # tmp_db.file.writelines(cfg)
+        # tmp_db.close()
+        # shutil.copy(orig_db, tmp_db.name)
+        # options.mission = tmp_db.name
+        try:
+            addStuff(conf, options, INSTRUMENT)
+            # shutil.copy(tmp_db.name, orig_db)
+        finally:
+            pass
+            # os.remove(tmp_db.name)
     finally:
         os.remove(tmpf.name)
