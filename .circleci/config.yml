@@ -63,7 +63,8 @@ jobs:
              sudo apt install -y postgresql-client
              createdb -h localhost sndd -O root
              pip install --user psycopg2
-             python scripts/CreateDBsabrs.py
+             python scripts/CreateDB.py --dialect postgresql unhtesting
+             python unit_tests/test_all.py
   docs:
     docker:
       - image: circleci/python:2.7.18
