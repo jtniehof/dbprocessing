@@ -19,6 +19,11 @@ except ImportError:
     import urllib
     urllib.parse = urllib
 
+try:
+    str_classes = (str, unicode)
+except NameError:
+    str_classes = (str,)
+
 import sqlalchemy
 import sqlalchemy.sql.expression
 from sqlalchemy import Table
@@ -120,7 +125,7 @@ class DButils(object):
         """
         self.dbIsOpen = False
         if mission is None:
-            raise (DBError("Must input database name to create DButils instance"))
+            raise DBError("Must input database name to create DButils instance")
         if engine is None:
             engine = 'sqlite' if os.path.isfile(os.path.expanduser(mission))\
                      else 'postgresql'
@@ -131,11 +136,6 @@ class DButils(object):
         self.re = fmtr.re
         self.openDB(db_var=db_var, engine=engine, echo=echo)
         self._createTableObjects()
-        try:
-            self._patchProcessQueue()
-        except AttributeError:
-            raise (AttributeError('{0} is not a valid database'.format(mission)))
-
         self.MissionDirectory = self.getMissionDirectory()
         self.CodeDirectory = self.getCodeDirectory()
         self.InspectorDirectory = self.getInspectorDirectory()
@@ -153,22 +153,6 @@ class DButils(object):
         :return: DBProcessing class instance for mission <mission name>
         """
         return 'DBProcessing class instance for mission ' + self.mission + ', version: ' + __version__
-
-    def _patchProcessQueue(self):
-        self.Processqueue.flush = self._processqueueFlush
-        self.Processqueue.remove = self._processqueueRemoveItem
-        self.Processqueue.getAll = self._processqueueGetAll
-        self.Processqueue.push = self._processqueuePush
-        self.Processqueue.len = self._processqueueLen
-        self.Processqueue.pop = self._processqueuePop
-        self.Processqueue.get = self._processqueueGet
-        self.Processqueue.clean = self._processqueueClean
-        self.Processqueue.rawadd = self._processqueueRawadd
-
-        # TODO to do thus cleaner and allow for [] to work on the classes
-        # ...info here...
-        # metaclass that is dbutils aware
-        # get __getitem__ to be a class mo
 
     ####################################
     ###### DB and Tables ###############
@@ -190,7 +174,7 @@ class DButils(object):
             return
         if engine == 'sqlite':
             if not os.path.isfile(os.path.expanduser(self.mission)):
-                raise (ValueError("DB file specified doesn't exist"))
+                raise ValueError("DB file specified doesn't exist")
             db_url = '{0}:///{1}'.format(engine, os.path.expanduser(
                 self.mission))
             self.mission = os.path.abspath(os.path.expanduser(self.mission))
@@ -204,7 +188,7 @@ class DButils(object):
 
         except (DBError, ArgumentError):
             (t, v, tb) = sys.exc_info()
-            raise (DBError('Error creating engine: ' + str(v)))
+            raise DBError('Error creating engine: ' + str(v))
         try:
             metadata = sqlalchemy.MetaData(bind=engineIns)
             # a session is what you use to actually talk to the DB, set one up with the current engine
@@ -217,7 +201,7 @@ class DButils(object):
             if verbose: print("DB is open: %s" % (engineIns))
             return
         except Exception as msg:
-            raise (DBError('Error opening database: %s' % (msg)))
+            raise DBError('Error opening database: %s' % (msg))
 
     def _createTableObjects(self, verbose=False):
         """
@@ -262,7 +246,7 @@ class DButils(object):
         Checks the db to see if it is currently processing, don't want to do 2 at the same time
 
         :return: false or the pid
-        :rtype: bool or long
+        :rtype: bool or int
 
         >>>  pnl.currentlyProcessing()
         """
@@ -276,7 +260,7 @@ class DButils(object):
             return False
         else:
             DBlogging.dblogger.error("More than one currently_processing flag set, fix the DB")
-            raise (DBError("More than one currently_processing flag set, fix the DB"))
+            raise DBError("More than one currently_processing flag set, fix the DB")
 
     def resetProcessingFlag(self, comment):
         """
@@ -289,7 +273,7 @@ class DButils(object):
         """
         sq2 = self.session.query(self.Logging).filter_by(currently_processing=True).count()
         if sq2 and comment is None:
-            raise (ValueError("Must enter a comment to override DB lock"))
+            raise ValueError("Must enter a comment to override DB lock")
         sq = self.session.query(self.Logging).filter_by(currently_processing=True)
         for val in sq:
             val.currently_processing = False
@@ -307,7 +291,7 @@ class DButils(object):
         # this is the logging of the processing, no real use for it yet but maybe we will in the future
         # helps to know is the process ran and if it succeeded
         if self.currentlyProcessing():
-            raise (DBError('A Currently Processing flag is still set, cannot process now'))
+            raise DBError('A Currently Processing flag is still set, cannot process now')
         # save this class instance so that we can finish the logging later
         self.__p1 = self.addLogging(True,
                                     datetime.datetime.utcnow(),
@@ -379,7 +363,7 @@ class DButils(object):
             self.__p1
         except:
             DBlogging.dblogger.warning("Logging was not started, can't stop")
-            raise (DBProcessingError("Logging was not started"))
+            raise DBProcessingError("Logging was not started")
         # clean up the logging, we are done processing and we can release the lock (currently_processing) and
         # put in the complete time
 
@@ -421,23 +405,24 @@ class DButils(object):
         else:
             return True
 
-    def _processqueueFlush(self):
+    def ProcessqueueFlush(self):
         """
         remove everything from the process queue
         This is as optimized as it can be
         """
-        length = self.Processqueue.len()
+        length = self.ProcessqueueLen()
         self.session.query(self.Processqueue).delete()
         self.commitDB()
         DBlogging.dblogger.info("Processqueue was cleared")
         return length
 
-    def _processqueueRemoveItem(self, item, commit = True):
+    def ProcessqueueRemove(self, item, commit = True):
         """
         remove a file from the queue by name or number
         """
         # if the input is a file name need to handle that
-        if not hasattr(item, '__iter__'):
+        if isinstance(item, str_classes) \
+           or not isinstance(item, collections.Iterable):
             item = [item]
         for ii, v in enumerate(item):
             item[ii] = self.getFileID(v)
@@ -447,21 +432,21 @@ class DButils(object):
         if sq and commit:
             self.commitDB()
 
-    def _processqueueGetAll(self, version_bump=False):
+    def ProcessqueueGetAll(self, version_bump=False):
         """
         Return the entire contents of the process queue
         """
         pqdata = self.session.query(self.Processqueue).all()
 
         if version_bump:
-            ans = zip(map(attrgetter('file_id'), pqdata), map(attrgetter('version_bump'), pqdata))
+            ans = list(zip(map(attrgetter('file_id'), pqdata), map(attrgetter('version_bump'), pqdata)))
         else:
-            ans = map(attrgetter('file_id'), pqdata)
+            ans = list(map(attrgetter('file_id'), pqdata))
 
         DBlogging.dblogger.debug("Entire Processqueue was read: {0} elements returned".format(len(ans)))
         return ans
 
-    def _processqueuePush(self, fileid, version_bump=None, MAX_ADD=150):
+    def ProcessqueuePush(self, fileid, version_bump=None, MAX_ADD=150):
         """
         Push a file onto the process queue (onto the right)
 
@@ -482,7 +467,7 @@ class DButils(object):
             if len(fileid) > MAX_ADD:
                 outval = []
                 for v in Utils.chunker(fileid, MAX_ADD):
-                    outval.extend(self._processqueuePush(v, version_bump=version_bump))
+                    outval.extend(self.ProcessqueuePush(v, version_bump=version_bump))
                 return outval
 
         # first filter() takes care of putting in values that are not in the DB.  It is silent
@@ -495,7 +480,7 @@ class DButils(object):
 
         fileid = list(map(itemgetter(0), fileid))  # nested tuples to list
 
-        pq = set(self.Processqueue.getAll())
+        pq = set(self.ProcessqueueGetAll())
         fileid = set(fileid).difference(pq)
 
         outval = []
@@ -513,12 +498,14 @@ class DButils(object):
         #        pqid = self.session.query(self.Processqueue.file_id).all()
         return outval
 
-    def _processqueueRawadd(self, fileid, version_bump=None, commit=True):
+    def ProcessqueueRawadd(self, fileid, version_bump=None, commit=True):
         """
         raw add file ids to the process queue
-        *** this might break things if an id is added that does not exist
-        ***   meant to be fast and used after getting the ids
-        *** IS safe against adding ids that are already in the queue
+
+        .. warning::
+           This might break things if an id is added that does not exist;
+           it's meant to be fast and used after getting the ids.
+           IS safe against adding ids that are already in the queue.
 
         Parameters
         ==========
@@ -530,7 +517,7 @@ class DButils(object):
         num : int
             the number of entries added to the processqueue
         """
-        current_q = set(self._processqueueGetAll())
+        current_q = set(self.ProcessqueueGetAll())
 
         if not hasattr(fileid, '__iter__'):
             fileid = [fileid]
@@ -552,14 +539,14 @@ class DButils(object):
                 self.commitDB()  # commit once for all the adds
         return len(files_to_add)
 
-    def _processqueueLen(self):
+    def ProcessqueueLen(self):
         """
         Return the number of files in the process queue
         """
 
         return self.session.query(self.Processqueue).count()
 
-    def _processqueuePop(self, index=0):
+    def ProcessqueuePop(self, index=0):
         """
         pop a file off the process queue (from the left)
 
@@ -573,12 +560,12 @@ class DButils(object):
         file_id : int
             the file_id of the file popped from the queue
         """
-        val = self._processqueueGet(index=index, instance=True)
+        val = self.ProcessqueueGet(index=index, instance=True)
         self.session.delete(val)
         self.commitDB()
         return (val.file_id, val.version_bump)
 
-    def _processqueueGet(self, index=0, instance=False):
+    def ProcessqueueGet(self, index=0, instance=False):
         """
         Get the file at the head of the queue (from the left)
 
@@ -588,7 +575,7 @@ class DButils(object):
             the file_id of the file popped from the queue
         """
         if index < 0:  # enable the python from the end indexing
-            index = self.Processqueue.len() + index
+            index = self.ProcessqueueLen() + index
 
         sq = self.session.query(self.Processqueue).offset(index).first()
         if instance:
@@ -597,7 +584,7 @@ class DButils(object):
             ans = (sq.file_id, sq.version_bump)
         return ans
 
-    def _processqueueClean(self, dryrun=False):
+    def ProcessqueueClean(self, dryrun=False):
         """
         go through the process queue and clear out lower versions of the same files
         this is determined by product and utc_file_date
@@ -607,8 +594,8 @@ class DButils(object):
         # BAL 30 March 2017 Trying a different method here that might be cleaner
 
         # # TODO this might break with weekly input files
-        # DBlogging.dblogger.debug("Entering _processqueueClean(), there are {0} entries".format(self.Processqueue.len()))
-        # pqdata = self.Processqueue.getAll(version_bump=True)
+        # DBlogging.dblogger.debug("Entering ProcessqueueClean(), there are {0} entries".format(self.ProcessqueueLen()))
+        # pqdata = self.ProcessqueueGetAll(version_bump=True)
         #
         # file_ids = list(map(itemgetter(0), pqdata))
         # version_bumps = list(map(itemgetter(1), pqdata))
@@ -634,25 +621,25 @@ class DButils(object):
         #
         # ## now we have a list of just the newest file_id's
         # if not dryrun:
-        #     self.Processqueue.flush()
-        #     #        self.Processqueue.push(ans)
+        #     self.ProcessqueueFlush()
+        #     #        self.ProcessqueuePush(ans)
         #     if not any(version_bumps2):
-        #         self.Processqueue.push(file_entries2)
+        #         self.ProcessqueuePush(file_entries2)
         #     else:
-        #         itertools.starmap(self.Processqueue.push, mixed_entries)
+        #         itertools.starmap(self.ProcessqueuePush, mixed_entries)
         #     #                for v in mixed_entries:
-        #     #                    itertools.startmap(self.Processqueue.push, v)
+        #     #                    itertools.startmap(self.ProcessqueuePush, v)
         # else:
         #     print(
-        #         '<dryrun> Queue cleaned leaving {0} of {1} entries'.format(len(file_entries2), self.Processqueue.len()))
+        #         '<dryrun> Queue cleaned leaving {0} of {1} entries'.format(len(file_entries2), self.ProcessqueueLen()))
         #
         # DBlogging.dblogger.debug(
-        #     "Done in _processqueueClean(), there are {0} entries left".format(self.Processqueue.len()))
+        #     "Done in ProcessqueueClean(), there are {0} entries left".format(self.ProcessqueueLen()))
 
         # # BAL 30 March 2017 new version
         # # get all the files from the process queue
-        DBlogging.dblogger.debug("Entering _processqueueClean(), there are {0} entries".format(self.Processqueue.len()))
-        pqdata = self.Processqueue.getAll(version_bump=True)
+        DBlogging.dblogger.debug("Entering ProcessqueueClean(), there are {0} entries".format(self.ProcessqueueLen()))
+        pqdata = self.ProcessqueueGetAll(version_bump=True)
         # all we need to do is look at each file and see if it is latest version or not, if it is not drop it
         entries = []
         version_bump = False
@@ -665,17 +652,17 @@ class DButils(object):
                 if self.fileIsNewest(pq[0]):
                     entries.append(pq)  # if the file is newest_version than we keep it
         if not dryrun:
-            self.Processqueue.flush()
+            self.ProcessqueueFlush()
             if not version_bump:
-                self.Processqueue.rawadd(zip(*entries)[0])
+                self.ProcessqueueRawadd(list(zip(*entries))[0])
             else:
                 for f in pqdata:
-                    self.Processqueue.add(f)
+                    self.Processqueueadd(f)
         else:
             print(
-                '<dryrun> Queue cleaned leaving {0} of {1} entries'.format(len(file_entries2), self.Processqueue.len()))
+                '<dryrun> Queue cleaned leaving {0} of {1} entries'.format(len(file_entries2), self.ProcessqueueLen()))
         DBlogging.dblogger.debug(
-            "Done in _processqueueClean(), there are {0} entries left".format(self.Processqueue.len()))
+            "Done in ProcessqueueClean(), there are {0} entries left".format(self.ProcessqueueLen()))
 
 
     def fileIsNewest(self, filename, debug=False):
@@ -694,7 +681,7 @@ class DButils(object):
         if debug: print('file_id', file_id, file.filename)
         latest = self.getFilesByProductDate(product_id, [date]*2, newest_version=True)
         if len(latest) > 1:
-            raise(DBError("More than one latest for a product date"))
+            raise DBError("More than one latest for a product date")
         latest_id = latest[0].file_id
         if debug: print('latest_id', latest_id)
         return file_id == latest_id
@@ -710,7 +697,9 @@ class DButils(object):
 
         >>>  pnl._purgeFileFromDB('Test-one_R0_evinst-L1_20100401_v0.1.1.cdf')
         """
-        if not hasattr(filename, '__iter__'):  # if not an iterable make it a iterable
+        # if not an iterable make it a iterable
+        if isinstance(filename, str_classes) \
+           or not isinstance(filename, collections.Iterable):
             filename = [filename]
 
         for ii, f in enumerate(filename):
@@ -732,7 +721,7 @@ class DButils(object):
 
             # we need to look in each table that could have a reference to this file and delete that
             try:  ## processqueue
-                self.Processqueue.remove(f)
+                self.ProcessqueueRemove(f)
             except DBNoData:
                 pass
 
@@ -765,7 +754,7 @@ class DButils(object):
         """
         ans = []
         sats = self.session.query(self.Satellite).all()
-        ans = map(lambda x: self.getTraceback('Satellite', x.satellite_id), sats)
+        ans = [self.getTraceback('Satellite', x.satellite_id) for x in sats]
         return ans
 
     def getAllInstruments(self):
@@ -777,7 +766,7 @@ class DButils(object):
         """
         ans = []
         insts = self.session.query(self.Instrument).all()
-        ans = map(lambda x: self.getTraceback('Instrument', x.instrument_id), insts)
+        ans = [self.getTraceback('Instrument', x.instrument_id) for x in insts]
         return ans
 
     def getAllCodes(self, active=True):
@@ -789,7 +778,7 @@ class DButils(object):
             codes = self.session.query(self.Code).filter(and_(self.Code.newest_version, self.Code.active_code)).all()
         else:
             codes = self.session.query(self.Code).all()
-        ans = map(lambda x: self.getTraceback('Code', x.code_id), codes)
+        ans = [self.getTraceback('Code', x.code_id) for x in codes]
         return ans
 
     def getAllFilenames(self,
@@ -821,7 +810,7 @@ class DButils(object):
             # Get file_id instead, saves time since getFileFullPath gets the ID anyway
             names = [d.file_id for d in files]
             # This is probobly slow, but hopfully not slow enough to be an issue
-            return map(self.getFileFullPath, names)
+            return list(map(self.getFileFullPath, names))
         else:
             return [d.filename for d in files]
 
@@ -856,7 +845,7 @@ class DButils(object):
         try:
             m1 = self.Mission()
         except AttributeError:
-            raise (DBError("Class Mission not found was it created?"))
+            raise DBError("Class Mission not found was it created?")
 
         m1.mission_name = mission_name
         m1.rootdir = rootdir.replace('{MISSION}', mission_name)
@@ -909,7 +898,7 @@ class DButils(object):
         :type extra_params: str
         """
         if output_timebase not in ['RUN', 'ORBIT', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'FILE']:
-            raise (ValueError("output_timebase invalid choice"))
+            raise ValueError("output_timebase invalid choice")
 
         p1 = self.Process()
         p1.output_product = output_product
@@ -1061,7 +1050,7 @@ class DButils(object):
         n1 = self.session.query(self.Filefilelink).filter_by(source_file=f).delete()
         n2 = self.session.query(self.Filefilelink).filter_by(resulting_file=f).delete()
         if n1 + n2 == 0:
-            raise (DBNoData("No entry for ID={0} found".format(f)))
+            raise DBNoData("No entry for ID={0} found".format(f))
         elif commit:
             self.commitDB()
 
@@ -1072,7 +1061,7 @@ class DButils(object):
         f = self.getFileID(f)  # change a name to a number
         n2 = self.session.query(self.Filecodelink).filter_by(resulting_file=f).delete()
         if n2 == 0:
-            raise (DBNoData("No entry for ID={0} found".format(f)))
+            raise DBNoData("No entry for ID={0} found".format(f))
         elif commit:
             self.commitDB()
 
@@ -1217,9 +1206,9 @@ class DButils(object):
         :type newest_version: bool
 
         :return: the code_id of the newly inserted code
-        :rtype: long
+        :rtype: int
         """
-        if isinstance(version, (str, unicode)):
+        if isinstance(version, str_classes):
             version = Version.Version.fromString(version)
 
         c1 = self.Code()
@@ -1278,10 +1267,10 @@ class DButils(object):
         :type newest_version: bool
 
         :return: the inspector_id of the newly inserted code
-        :rtype: long
+        :rtype: int
 
         """
-        if isinstance(version, (str, unicode)):
+        if isinstance(version, str_classes):
             version = Version.Version.fromString(version)
         c1 = self.Inspector()
         c1.filename = filename
@@ -1426,7 +1415,7 @@ class DButils(object):
             self.session.commit()
         except IntegrityError as IE:
             self.session.rollback()
-            raise (DBError(IE))
+            raise DBError(IE)
 
     def closeDB(self):
         """
@@ -1440,11 +1429,12 @@ class DButils(object):
             return
         try:
             self.session.close()
+            self.engine.dispose()
             self.dbIsOpen = False
             DBlogging.dblogger.info("Database connection closed")
         except DBError:
             DBlogging.dblogger.error("Database connection could not be closed")
-            raise (DBError('could not close DB'))
+            raise DBError('could not close DB')
 
     def addFile(self,
                 filename=None,
@@ -1496,12 +1486,12 @@ class DButils(object):
         :keyword caveats: caveats associated with the file
         :type caveates: str
         :keyword met_start_time: met start time of the file
-        :type met_start_time: long
+        :type met_start_time: int
         :keyword met_stop_time: met stop time of the file
-        :type met_stop_time: long
+        :type met_stop_time: int
 
         :return: file_id of the newly inserted file
-        :rtype: long
+        :rtype: int
         """
         utc_start_time = Utils.toDatetime(utc_start_time)
         utc_stop_time = Utils.toDatetime(utc_stop_time)
@@ -1591,7 +1581,7 @@ class DButils(object):
         TODO, this is really slow, this query made it a lot faster but I bet it can get better
 
         """
-        if isinstance(filename, (str, unicode)):
+        if isinstance(filename, str_classes):
             filename = self.getFileID(filename)
         sq = self.session.query(self.File.filename, self.Product.relative_path).filter(
             self.File.file_id == filename).join((self.Product, self.File.product_id == self.Product.product_id)).one()
@@ -1610,7 +1600,7 @@ class DButils(object):
         """
         DBlogging.dblogger.debug("Entered getProcessFromInputProduct: {0}".format(product))
         sq = self.session.query(self.Productprocesslink.process_id).filter_by(input_product_id=product).all()
-        return map(itemgetter(0), sq)
+        return list(map(itemgetter(0), sq))
 
     def getProcessFromOutputProduct(self, outProd):
         """
@@ -1635,10 +1625,10 @@ class DButils(object):
         Given a process name return its id
         """
         try:
-            proc_id = long(proc_name)
+            proc_id = int(proc_name)
             proc_name = self.session.query(self.Process).get(proc_id)
             if proc_name is None:
-                raise (NoResultFound('No row was found for id={0}'.format(proc_id)))
+                raise NoResultFound('No row was found for id={0}'.format(proc_id))
         except ValueError:  # it is not a number
             proc_id = self.session.query(self.Process.process_id).filter_by(process_name=proc_name).one()[0]
         return proc_id
@@ -1656,30 +1646,30 @@ class DButils(object):
         :return: instrument_id - the instrument ID
         """
         try:
-            i_id = long(name)
+            i_id = int(name)
             sq = self.session.query(self.Instrument).get(i_id)
             if sq is None:
-                raise (DBNoData("No instrument_id {0} found in the DB".format(i_id)))
+                raise DBNoData("No instrument_id {0} found in the DB".format(i_id))
             return sq.instrument_id
         except ValueError:
             sq = self.session.query(self.Instrument).filter_by(instrument_name=name).all()
             if len(sq) == 0:
-                raise (DBNoData("No instrument_name {0} found in the DB".format(name)))
+                raise DBNoData("No instrument_name {0} found in the DB".format(name))
             if len(sq) > 1:
                 if satellite_id is None:
-                    raise (ValueError('Non unique instrument name and no satellite specified'))
+                    raise ValueError('Non unique instrument name and no satellite specified')
                 sat_id = self.getSatelliteID(satellite_id)
                 for v in sq:
                     if v.satellite_id == sat_id:
                         return v.instrument_id
                 # I do not believe this can be reached, BAL 2-12-2016
-                raise (ValueError("No matching instrument, satellite found. {0}:{1}".format(name, satellite_id)))
+                raise ValueError("No matching instrument, satellite found. {0}:{1}".format(name, satellite_id))
             return sq[0].instrument_id
 
     def getMissions(self):
         """Return a list of all the missions"""
         sq = self.session.query(self.Mission.mission_name)
-        return map(itemgetter(0), sq.all())
+        return list(map(itemgetter(0), sq.all()))
 
     def renameFile(self, filename, newname):
         """
@@ -1698,24 +1688,24 @@ class DButils(object):
         :type filename: str
 
         :return: file_id: file_id of the input file
-        :rtype: long
+        :rtype: int
         """
         if isinstance(filename, self.File):
             return filename.file_id
         try:
-            f_id = long(filename)
+            f_id = int(filename)
             sq = self.session.query(self.File).get(f_id)
             if sq is None:
-                raise (DBNoData("No file_id {0} found in the DB".format(filename)))
+                raise DBNoData("No file_id {0} found in the DB".format(filename))
             return sq.file_id
         except TypeError:  # came in as list or tuple
-            return map(self.getFileID, filename)
+            return list(map(self.getFileID, filename))
         except ValueError:
             sq = self.session.query(self.File).filter_by(filename=filename).first()
             if sq is not None:
                 return sq.file_id
             else:  # no file_id found
-                raise (DBNoData("No filename %s found in the DB" % (filename)))
+                raise DBNoData("No filename %s found in the DB" % (filename))
 
     def getCodeID(self, codename):
         """
@@ -1725,20 +1715,20 @@ class DButils(object):
         :type filename: str
 
         :return: code_id: code_id of the input file
-        :rtype: long
+        :rtype: int
         """
         try:
-            c_id = long(codename)
+            c_id = int(codename)
             code = self.session.query(self.Code).get(c_id)
             if code is None:
-                raise (DBNoData("No code id {0} found in the DB".format(c_id)))
+                raise DBNoData("No code id {0} found in the DB".format(c_id))
         except TypeError:  # came in as list or tuple
-            return map(self.getCodeID, codename)
+            return list(map(self.getCodeID, codename))
         except ValueError:
             sq = self.session.query(self.Code.code_id).filter_by(filename=codename).all()
             if len(sq) == 0:
-                raise (DBNoData("No code name {0} found in the DB".format(codename)))
-            c_id = map(itemgetter(0), sq)
+                raise DBNoData("No code name {0} found in the DB".format(codename))
+            c_id = list(map(itemgetter(0), sq))
         return c_id
 
     def getFileDates(self, file_id):
@@ -1757,7 +1747,7 @@ class DButils(object):
         """
         tmp = []
         for i in invals:
-            if isinstance(i, (str, unicode)):
+            if isinstance(i, str_classes):
                 tmp.append(self.getEntry('File', i))
             else:
                 tmp.append(i)
@@ -1771,7 +1761,7 @@ class DButils(object):
         Return the fileID for the input filename
 
         :param process_id: process_id to return the input_product_id for
-        :type process_id: long
+        :type process_id: int
 
         :return: list of input_product_ids
         :rtype: list
@@ -1913,7 +1903,7 @@ class DButils(object):
         files = self.getFiles(instrument=inst_id, level=level, newest_version=newest_version)
 
         if id_only:
-            files = map(attrgetter('file_id'), files)  # this is faster than a list comprehension
+            files = list(map(attrgetter('file_id'), files))  # this is faster than a list comprehension
         return files
 
     def getFilesByCode(self, code_id, newest_version=False, id_only=False):
@@ -1923,7 +1913,7 @@ class DButils(object):
         files = self.getFiles(code=code_id, newest_version=newest_version)
 
         if id_only:
-            files = map(attrgetter('file_id'), files)  # this is faster than a list comprehension
+            files = list(map(attrgetter('file_id'), files))  # this is faster than a list comprehension
         return files
 
     def getAllFileIds(self,
@@ -1943,7 +1933,7 @@ class DButils(object):
         files = self.getFiles(startDate=startDate, endDate=endDate, level=level, product=product, code=code,
                               instrument=instrument, exists=exists, newest_version=newest_version, limit=limit)
 
-        return map(attrgetter('file_id'), files)  # this is faster than a list comprehension
+        return list(map(attrgetter('file_id'), files))  # this is faster than a list comprehension
 
     def getActiveInspectors(self):
         """
@@ -1973,22 +1963,29 @@ class DButils(object):
 
         :return: product_id -the product  ID for the input product name
         """
+        is_sequence, is_name = False, False # Assume input is a product ID
         try:
-            product_name = long(product_name)
-            sq = self.session.query(self.Product).get(product_name)
-            if sq is not None:
-                return sq.product_id
-            else:
-                raise (DBNoData("No product_id {0} found in the DB".format(product_name)))
+            product_name = int(product_name)
         except TypeError:  # came in as list or tuple
-            return map(self.getProductID, product_name)
+            is_sequence = True
         except ValueError:
+            is_name = True
+        if is_sequence: # Call for every input
+            return list(map(self.getProductID, product_name))
+        if is_name: # Product name, just get ID
             sq = self.session.query(self.Product).filter_by(product_name=product_name)
-            try:
-                # if two products have the same name always return the lower id one
-                return (sorted([x.product_id for x in sq])[0])
-            except IndexError:  # no file_id found
-                raise (DBNoData("No product_name %s found in the DB" % (product_name)))
+            # if two products have the same name always return the lower id one
+            res = sorted([x.product_id for x in sq])
+            if res:
+                return res[0]
+            # no file_id found
+                raise DBNoData("No product_name %s found in the DB" % (product_name))
+        # Numerical product ID, make sure it exists
+        sq = self.session.query(self.Product).get(product_name)
+        if sq is not None:
+            return sq.product_id
+        else:
+            raise DBNoData("No product_id {0} found in the DB".format(product_name))
 
     def getSatelliteID(self,
                        sat_name):
@@ -2000,13 +1997,13 @@ class DButils(object):
         :return: satellite_id - the requested satellite  ID
         """
         try:
-            sat_id = long(sat_name)
+            sat_id = int(sat_name)
             sq = self.session.query(self.Satellite).get(sat_id)
             if sq is None:
-                raise (NoResultFound("No satellite id={0} found".format(sat_id)))
+                raise NoResultFound("No satellite id={0} found".format(sat_id))
             return sq.satellite_id
         except TypeError:  # came in as list or tuple
-            return map(self.getSatelliteID, sat_name)
+            return list(map(self.getSatelliteID, sat_name))
         except ValueError:  # it was a name
             sq = self.session.query(self.Satellite).filter_by(satellite_name=sat_name).one()
             return sq.satellite_id  # there can be only one of each name
@@ -2061,7 +2058,7 @@ class DButils(object):
         if sq.count() == 0:
             return None
         elif sq.count() > 1:
-            raise (DBError('More than one code active for a Given day'))
+            raise DBError('More than one code active for a Given day')
         return sq[0].code_id
 
     def getMissionDirectory(self):
@@ -2077,7 +2074,7 @@ class DButils(object):
         except sqlalchemy.orm.exc.NoResultFound:
             return None
         except sqlalchemy.orm.exc.MultipleResultsFound:
-            raise (ValueError('No mission id specified and more than one mission present'))
+            raise ValueError('No mission id specified and more than one mission present')
 
     def getCodeDirectory(self):
         """
@@ -2171,14 +2168,14 @@ class DButils(object):
         Given a mission name return its ID
         """
         try:
-            m_id = long(mission_name)
+            m_id = int(mission_name)
             ms = self.session.query(self.Mission).get(m_id)
             if ms is None:
-                raise (DBNoData('Invalid mission id {0}'.format(m_id)))
+                raise DBNoData('Invalid mission id {0}'.format(m_id))
         except (ValueError, TypeError):
             sq = self.session.query(self.Mission.mission_id).filter_by(mission_name=mission_name).all()
             if len(sq) == 0:
-                raise (DBNoData('Invalid mission name {0}'.format(mission_name)))
+                raise DBNoData('Invalid mission name {0}'.format(mission_name))
             m_id = sq[0].mission_id
         return m_id
 
@@ -2210,7 +2207,7 @@ class DButils(object):
         Given a release number return a list of all the filenames with the release
         """
         sq = self.session.query(self.Release.file_id).filter_by(release_num=rel_num).all()
-        sq = map(itemgetter(0), sq)
+        sq = list(map(itemgetter(0), sq))
         for i, v in enumerate(sq):
             if fullpath:
                 sq[i] = self.getFileFullPath(v)
@@ -2270,10 +2267,10 @@ class DButils(object):
                   .join((self.Mission, self.Satellite.mission_id == self.Mission.mission_id)).all())
 
             if not sq:  # did not find a matchm this is a dberror
-                raise (DBError("file {0} did not have a traceback, this is a problem, fix it".format(in_id)))
+                raise DBError("file {0} did not have a traceback, this is a problem, fix it".format(in_id))
 
             if len(sq) > 1:
-                raise (DBError("Found multiple tracebacks for file {0}".format(in_id)))
+                raise DBError("Found multiple tracebacks for file {0}".format(in_id))
             for ii, v in enumerate(vars):
                 retval[v] = sq[0][ii]
 
@@ -2289,7 +2286,8 @@ class DButils(object):
 
             if not sq:  # did not find a match this is a dberror
                 raise (DBError("code {0} did not have a traceback, this is a problem, fix it".format(in_id)))
-
+                raise DBError("code {0} did not have a traceback, this is a problem, fix it".format(in_id))
+            
             if sq[0][1].output_timebase != 'RUN':
                 vars = ['code', 'process', 'product', 'instrument',
                         'instrumentproductlink', 'satellite', 'mission']
@@ -2307,17 +2305,17 @@ class DButils(object):
                       .join((self.Mission, self.Satellite.mission_id == self.Mission.mission_id)).all())
 
             if not sq:  # did not find a match this is a dberror
-                raise (DBError("code {0} did not have a traceback, this is a problem, fix it".format(in_id)))
+                raise DBError("code {0} did not have a traceback, this is a problem, fix it".format(in_id))
 
             if len(sq) > 1:
-                raise (DBError("Found multiple tracebacks for code {0}".format(in_id)))
+                raise DBError("Found multiple tracebacks for code {0}".format(in_id))
             for ii, v in enumerate(vars):
                 retval[v] = sq[0][ii]
 
         elif table.capitalize() == 'Inspector':
             retval['inspector'] = self.getEntry(table.capitalize(), in_id)
             tmp = self.getTraceback('Product', retval['inspector'].product)
-            retval = dict(retval.items() + tmp.items())
+            retval = dict(itertools.chain(retval.items(), tmp.items()))
 
         elif table.capitalize() == 'Product':
             vars = ['product', 'inspector', 'instrument',
@@ -2337,10 +2335,10 @@ class DButils(object):
                   .join((self.Mission, self.Satellite.mission_id == self.Mission.mission_id)).all())
 
             if not sq:  # did not find a match this is a dberror
-                raise (DBError("product {0} did not have a traceback, this is a problem, fix it".format(in_id)))
+                raise DBError("product {0} did not have a traceback, this is a problem, fix it".format(in_id))
 
             if len(sq) > 1:
-                raise (DBError("Found multiple tracebacks for product {0}".format(in_id)))
+                raise DBError("Found multiple tracebacks for product {0}".format(in_id))
             for ii, v in enumerate(vars):
                 retval[v] = sq[0][ii]
 
@@ -2364,10 +2362,10 @@ class DButils(object):
                   .join((self.Mission, self.Satellite.mission_id == self.Mission.mission_id)).all())
 
             if not sq:  # did not find a match this is a dberror
-                raise (DBError("process {0} did not have a traceback, this is a problem, fix it".format(in_id)))
+                raise DBError("process {0} did not have a traceback, this is a problem, fix it".format(in_id))
 
             if len(sq) > 1:
-                raise (DBError("Found multiple tracebacks for process {0}".format(in_id)))
+                raise DBError("Found multiple tracebacks for process {0}".format(in_id))
             for ii, v in enumerate(vars):
                 retval[v] = sq[0][ii]
 
@@ -2392,18 +2390,18 @@ class DButils(object):
         elif table.capitalize() == 'Instrument':
             retval['instrument'] = self.getEntry('Instrument', in_id)
             tmp = self.getTraceback('Satellite', retval['instrument'].satellite_id)
-            retval = dict(retval.items() + tmp.items())
+            retval = dict(itertools.chain(retval.items(), tmp.items()))
 
         elif table.capitalize() == 'Satellite':
             retval['satellite'] = self.getEntry('Satellite', in_id)
             tmp = self.getTraceback('Mission', retval['satellite'].mission_id)
-            retval = dict(retval.items() + tmp.items())
+            retval = dict(itertools.chain(retval.items(), tmp.items()))
 
         elif table.capitalize() == 'Mission':
             retval['mission'] = self.getEntry('Mission', in_id)
 
         else:
-            raise (NotImplementedError('The traceback or {0} is not implemented'.format(table)))
+            raise NotImplementedError('The traceback or {0} is not implemented'.format(table))
 
         return retval
 
@@ -2428,7 +2426,7 @@ class DButils(object):
         inst_id = self.getInstrumentID(inst_id)
         sq = self.session.query(self.Instrumentproductlink.product_id).filter_by(instrument_id=inst_id).all()
         if sq:
-            return map(itemgetter(0), sq)
+            return list(map(itemgetter(0), sq))
         else:
             return None
 
@@ -2438,7 +2436,7 @@ class DButils(object):
         """
         sq = self.session.query(self.Product.product_id).filter_by(level=level).all()
         if sq:
-            return map(itemgetter(0), sq)
+            return list(map(itemgetter(0), sq))
         else:
             return None
 
@@ -2464,7 +2462,7 @@ class DButils(object):
         """
         prods = self.session.query(self.Product).all()
         if id_only:
-            prods = map(attrgetter('product_id'), prods)
+            prods = list(map(attrgetter('product_id'), prods))
         return prods
 
     def getEntry(self, table, args):
@@ -2490,7 +2488,7 @@ class DButils(object):
         if not f_ids:
             return []
 
-        f_ids = map(itemgetter(0), f_ids)
+        f_ids = list(map(itemgetter(0), f_ids))
         if id_only:
             return f_ids
 
@@ -2511,7 +2509,10 @@ class DButils(object):
         Given an input product return a list of its output product ids
         """
         out_proc = self.getProcessFromInputProduct(inprod)
-        return [self.getEntry('Process', op).output_product for op in out_proc]
+        out_prod = [self.getEntry('Process', op).output_product
+                    for op in out_proc]
+        # Skip if no output product ('', null, but allow prodid of 0)
+        return [op for op in out_prod if op or op == 0]
 
     def getProductParentTree(self):
         """

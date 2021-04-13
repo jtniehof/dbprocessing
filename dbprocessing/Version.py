@@ -83,7 +83,7 @@ class Version(object):
         Check a version to make sure it is valid, works on current object
         """
         if self.interface == 0:
-            raise (VersionError("interface_version starts at 1"))
+            raise VersionError("interface_version starts at 1")
 
     def __repr__(self):
         return 'Version: ' + self.__str__()
@@ -91,6 +91,10 @@ class Version(object):
     def __str__(self):
         return str(self.interface) + '.' + str(self.quality) + '.' + \
                str(self.revision)
+
+    def __format__(self, *args, **kwargs):
+        """Explicitly format as string"""
+        return format(str(self), *args, **kwargs)
 
     def incInterface(self):
         """Increment the interface version and reset the other two"""

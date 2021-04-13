@@ -15,10 +15,8 @@ import stat
 import dateutil
 from sqlalchemy import func
 
-import rbsp #rbsp.mission_day_to_UTC
 
 from dbprocessing import Utils, inspector
-from rbsp import Version
 
 from dbprocessing import DButils
 
@@ -98,20 +96,20 @@ def makeHTML(dbu, info, satellite, delta_days=3):
       <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type"><title>{0}</title>
         <style type="text/css">
             table, td, th
-            {
+            {{
             border:1px solid green;
             padding:3px 7px 2px 7px;
-            }
+            }}
             th
-            {
+            {{
             background-color:green;
             color:white;
-            }
+            }}
             tr.alt td
-            {
+            {{
             color:#000000;
             background-color:#EAF2D3;
-            }
+            }}
         </style>
 
     </head>
@@ -126,7 +124,10 @@ def makeHTML(dbu, info, satellite, delta_days=3):
     <br>
     </body></html>
     """
-    output = tempfile.NamedTemporaryFile(delete=False, suffix='_htmlCoverage')
+    kwargs = {'delete': False, 'suffix': '_htmlCoverage', 'mode': 'w+t'}
+    if str is not bytes: # Encoding of temporary file only in python 3
+        kwargs['encoding'] = 'ascii'
+    output = tempfile.NamedTemporaryFile(**kwargs)
     output.writelines(header)
 
     output.write('<h1>{0}</h1>\n'.format(dbu.mission))
@@ -174,8 +175,7 @@ def makeHTML(dbu, info, satellite, delta_days=3):
             output.write('<tr class="alt">')
         output.write('<td>{0}</td>'.format(d.isoformat()))
         output.write('<td>{0}</td>'.format(
-            int(rbsp.UTC_to_mission_day(satellite[-1],
-                                        datetime.datetime.combine(d, datetime.time(0))))))
+            d.strftime('%Y-%j')))
 
         for p in products:
             fdates = [v.utc_file_date for v in info[satellite][p][1]]
@@ -198,8 +198,8 @@ def makeHTML(dbu, info, satellite, delta_days=3):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--mission", type=str,
-                        help="mission to connect to", default='~ectsoc/RBSP_processing.sqlite')
+    parser.add_argument("-m", "--mission", type=str, required=True,
+                        help="mission to connect to")
     parser.add_argument("-d", "--deltadays", type=int,
                         help="days past last file to make table", default=3)
     parser.add_argument('outbase', type=str,
@@ -214,9 +214,9 @@ if __name__ == "__main__":
         filename = makeHTML(dbu, info, sat, delta_days=options.deltadays)
         outname = options.outbase + '_{0}.html'.format(sat)
         shutil.move(filename, outname)
-        os.chmod(outname, 0664)
+        os.chmod(outname, 0o664)
         Time1 = EventTimer ('Created: {0}'.format(outname), Time1) 
-
+    dbu.closeDB()
 
 
 

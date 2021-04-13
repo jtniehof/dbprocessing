@@ -75,7 +75,7 @@ if __name__ == '__main__':
     options = parser.parse_args()
 
     dbu = DButils.DButils(options.database)
-    items = dbu.Processqueue.getAll()
+    items = dbu.ProcessqueueGetAll()
     traceback = []
     for v in items:
         traceback.append(dbu.getTraceback('File', v))
@@ -91,3 +91,4 @@ if __name__ == '__main__':
         output = open(options.output, 'w')
         output.write(out)
         output.close()
+    del dbu

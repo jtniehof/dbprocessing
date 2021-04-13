@@ -18,16 +18,22 @@
 # <- create the inst_prod link
 
 import ConfigParser
+import collections
 import os
 import shutil
 import sys
 import tempfile
+<<<<<<< postgresql
 from optparse import OptionParser
 from ast import literal_eval as make_tuple
+=======
+import argparse
+>>>>>>> master
 
 from sqlalchemy.orm.exc import NoResultFound
 
 from dbprocessing import DButils
+import dbprocessing.Utils
 
 expected = ['mission', 'satellite', 'instrument', 'product', 'process']
 expected_keyword = { }
@@ -53,43 +59,25 @@ expected_keyword['process'] = ['process_name', 'output_product',
                                'code_arguments', 'code_cpu', 'code_ram']
 
 
-def readconfig(config_filepath):
-    # Create a ConfigParser object, to read the config file
-    cfg = ConfigParser.SafeConfigParser()
-    cfg.read(config_filepath)
-    sections = cfg.sections()
-    # Read each parameter in turn
-    ans = { }
-    for section in sections:
-        ans[section] = dict(cfg.items(section))
-        for item in ans[section]:
-            if 'input' in item:
-                if '(' in ans[section][item]:
-                    ans[section][item] = make_tuple(ans[section][item])
-                else:
-                    ans[section][item] = (ans[section][item], 0, 0)
-    return ans
-
-
 def _sectionCheck(conf):
     """
     Check the sections to be sure they are correct and readable
     """
     # check the section names that are there.
-    keys = conf.keys()
-    for key in conf.keys():
+    keys = list(conf)
+    for key in list(conf):
         # startswith allows you to supply a tuple of strings to test for
         if key.startswith(tuple(expected + ["DEFAULT"])):
             keys.remove(key)
 
     # do we have any left over keys?
     if keys:
-        raise(ValueError('Section error, {0} was not understood'.format(keys[0])))
+        raise ValueError('Section error, {0} was not understood'.format(keys[0]))
 
     # check that all the required sections are there
     for req in expected[:-2]:
         if not req in conf:
-            raise (ValueError('Required section: "{0}" was not found'.format(req)))
+            raise ValueError('Required section: "{0}" was not found'.format(req))
 
 
 def _keysCheck(conf, section):
@@ -106,9 +94,14 @@ def _keysCheck(conf, section):
     for k in keys:
         if k.startswith('required_input') or k.startswith('optional_input'):
             continue
+<<<<<<< postgresql
         else:
             if k not in conf[section]:
                 raise (ValueError('Required key: "{0}" was not found in [{1}] section'.format(k, section)))
+=======
+        if k not in conf[section]:
+            raise ValueError('Required key: "{0}" was not found in [{1}] section'.format(k, section))
+>>>>>>> master
 
 
 def _keysRemoveExtra(conf, section):
@@ -122,7 +115,7 @@ def _keysRemoveExtra(conf, section):
         section_ex = 'product'
     else:
         section_ex = section
-    keys = conf[section].keys()
+    keys = list(conf[section])
     for k in keys:
         if k.startswith('required_input') or k.startswith('optional_input'):
             continue
@@ -142,10 +135,10 @@ def _keysPresentCheck(conf):
             for k2 in conf[k]:
                 if 'input' in k2:
                     if conf[k][k2][0] not in conf:
-                        raise (ValueError('Key {0} referenced in {1} was not found'.format(conf[k][k2], k)))
+                        raise ValueError('Key {0} referenced in {1} was not found'.format(conf[k][k2], k))
                 elif 'output_product' in k2:
                     if conf[k][k2] not in conf and conf[k]['output_timebase'] != "RUN":
-                        raise (ValueError('Key {0} referenced in {1} was not found'.format(conf[k][k2], k)))
+                        raise ValueError('Key {0} referenced in {1} was not found'.format(conf[k][k2], k))
 
 
 def configCheck(conf):
@@ -172,7 +165,7 @@ def _fileTest(filename):
 
     seen_twice = set([x for x in data if data.count(x) > 1]) # It's O(n^2), but it's small enough it doesn't matter
     if seen_twice:
-        raise (ValueError('Specified section(s): "{0}" is repeated!'.format(seen_twice)))
+        raise ValueError('Specified section(s): "{0}" is repeated!'.format(seen_twice))
 
 
 def addStuff(cfg, options, instrument):
@@ -201,7 +194,7 @@ def addStuff(cfg, options, instrument):
         inst_id = dbu.getInstrumentID(cfg['instrument']['instrument_name'], satellite_id)
         instrument = dbu.session.query(dbu.Instrument).get(inst_id)
         if instrument.satellite_id != satellite_id:
-            raise (ValueError())  # this means it is the same name on a different sat, need to add
+            raise ValueError()  # this means it is the same name on a different sat, need to add
         instrument_id = instrument.instrument_id
         print(
             'Found Instrument: {0} {1}'.format(instrument_id,
@@ -310,7 +303,7 @@ if __name__ == "__main__":
 
     _fileTest(filename)
 
-    conf = readconfig(filename)
+    conf = dbprocessing.Utils.readconfig(filename)
     configCheck(conf)
     if options.verify:  # we are done here if --verify is set
         sys.exit(0)
@@ -329,12 +322,14 @@ if __name__ == "__main__":
         cfg[ii] = cfg[ii].replace('{INSTRUMENT}', INSTRUMENT)
 
     try:
-        tmpf = tempfile.NamedTemporaryFile(delete=False, suffix='_conf_file')
+        tmpf = tempfile.NamedTemporaryFile(mode='wt', delete=False,
+                                           suffix='_conf_file')
         tmpf.file.writelines(cfg)
         tmpf.close()
         # recheck the temp file
-        conf = readconfig(tmpf.name)
+        conf = dbprocessing.Utils.readconfig(tmpf.name)
         configCheck(conf)
+<<<<<<< postgresql
         ### The following is commented out as a Postgres database is implemented.
         # do all our work on a temp version of the DB, if it all works, move tmp on top of existing
         #   if it fails just delete the tmp and do nothing
@@ -350,5 +345,23 @@ if __name__ == "__main__":
         finally:
             pass
             # os.remove(tmp_db.name)
+=======
+        if os.path.isfile(options.mission): # sqlite
+            # do all our work on a temp version of the DB, if it all works, move tmp on top of existing
+            #   if it fails just delete the tmp and do nothing
+            orig_db = options.mission
+            tmp_db = tempfile.NamedTemporaryFile(delete=False,
+                                                 suffix='_temp_db')
+            tmp_db.close()
+            shutil.copy(orig_db, tmp_db.name)
+            options.mission = tmp_db.name
+            try:
+                addStuff(conf, options)
+                shutil.copy(tmp_db.name, orig_db)
+            finally:
+                os.remove(tmp_db.name)
+        else: # postgresql
+            addStuff(conf, options)
+>>>>>>> master
     finally:
         os.remove(tmpf.name)

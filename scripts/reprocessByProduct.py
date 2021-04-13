@@ -53,7 +53,7 @@ if __name__ == "__main__":
     if options.force not in [None, 0, 1, 2]:
         parser.error("invalid force option [0,1,2]")
 
-    if startDate > endDate:
+    if startDate is not None and endDate is not None and startDate > endDate:
         parser.error("startDate > endDate, nothing will be added")
 
         
@@ -67,5 +67,5 @@ if __name__ == "__main__":
             num = 0
         print('Added {0} files to be reprocessed for product {1}'.format(num, prod))
         DBlogging.dblogger.info('Added {0} files to be reprocessed for product {1}'.format(num, prod))
-
+    del db
 
