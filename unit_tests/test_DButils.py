@@ -92,28 +92,28 @@ class DBUtilsOtherTests(TestSetup):
         ans = set([v.filename for v in self.dbu.getFilesByProduct(13, newest_version=True)])
         self.assertEqual(len(ans), 22)
         newest_files = set([
-                         u'ect_rbspa_0220_377_02.ptp.gz',
-                         u'ect_rbspa_0221_377_04.ptp.gz',
-                         u'ect_rbspa_0370_377_06.ptp.gz',
-                         u'ect_rbspa_0371_377_03.ptp.gz',
-                         u'ect_rbspa_0372_377_03.ptp.gz',
-                         u'ect_rbspa_0373_377_04.ptp.gz',
-                         u'ect_rbspa_0374_377_02.ptp.gz',
-                         u'ect_rbspa_0375_377_03.ptp.gz',
-                         u'ect_rbspa_0376_377_07.ptp.gz',
-                         u'ect_rbspa_0377_377_01.ptp.gz',
-                         u'ect_rbspa_0378_377_03.ptp.gz',
-                         u'ect_rbspa_0379_377_04.ptp.gz',
-                         u'ect_rbspa_0380_377_02.ptp.gz',
-                         u'ect_rbspa_0381_377_02.ptp.gz',
-                         u'ect_rbspa_0382_377_07.ptp.gz',
-                         u'ect_rbspa_0383_377_04.ptp.gz',
-                         u'ect_rbspa_0384_377_02.ptp.gz',
-                         u'ect_rbspa_0385_377_03.ptp.gz',
-                         u'ect_rbspa_0386_377_03.ptp.gz',
-                         u'ect_rbspa_0387_377_02.ptp.gz',
-                         u'ect_rbspa_0388_377_03.ptp.gz',
-                         u'ect_rbspa_0389_377_05.ptp.gz'])
+                         'ect_rbspa_0220_377_02.ptp.gz',
+                         'ect_rbspa_0221_377_04.ptp.gz',
+                         'ect_rbspa_0370_377_06.ptp.gz',
+                         'ect_rbspa_0371_377_03.ptp.gz',
+                         'ect_rbspa_0372_377_03.ptp.gz',
+                         'ect_rbspa_0373_377_04.ptp.gz',
+                         'ect_rbspa_0374_377_02.ptp.gz',
+                         'ect_rbspa_0375_377_03.ptp.gz',
+                         'ect_rbspa_0376_377_07.ptp.gz',
+                         'ect_rbspa_0377_377_01.ptp.gz',
+                         'ect_rbspa_0378_377_03.ptp.gz',
+                         'ect_rbspa_0379_377_04.ptp.gz',
+                         'ect_rbspa_0380_377_02.ptp.gz',
+                         'ect_rbspa_0381_377_02.ptp.gz',
+                         'ect_rbspa_0382_377_07.ptp.gz',
+                         'ect_rbspa_0383_377_04.ptp.gz',
+                         'ect_rbspa_0384_377_02.ptp.gz',
+                         'ect_rbspa_0385_377_03.ptp.gz',
+                         'ect_rbspa_0386_377_03.ptp.gz',
+                         'ect_rbspa_0387_377_02.ptp.gz',
+                         'ect_rbspa_0388_377_03.ptp.gz',
+                         'ect_rbspa_0389_377_05.ptp.gz'])
         self.assertEqual(ans, newest_files)
 
     def test_checkIncoming(self):
@@ -191,6 +191,15 @@ class DBUtilsOtherTests(TestSetup):
         file_id = self.dbu.getFileID(123)
         self.dbu._purgeFileFromDB(file_id)
         self.assertRaises(DButils.DBNoData, self.dbu.getFileID, file_id)
+        self.assertEqual(self.dbu.session.query(self.dbu.File).count(), 6680)
+
+    def test_purgeFileFromDBByName(self):
+        """purgeFileFromDB, given a filename"""
+        self.assertEqual(self.dbu.session.query(self.dbu.File).count(), 6681)
+        self.dbu._purgeFileFromDB('ect_rbspb_0377_356_01.ptp.gz')
+        self.assertRaises(DButils.DBNoData, self.dbu.getFileID, 123)
+        self.assertRaises(DButils.DBNoData, self.dbu.getFileID,
+                          'ect_rbspb_0377_356_01.ptp.gz')
         self.assertEqual(self.dbu.session.query(self.dbu.File).count(), 6680)
 
     def test_nameSubProduct(self):
@@ -346,7 +355,11 @@ class DBUtilsGetTests(TestSetup):
         ans = self.dbu.getAllSatellites()
         # check that this is what we expect
         self.assertEqual(2, len(ans))
-        self.assertEqual([('satellite', 'satellite'), ('mission', 'mission')], zip(*ans))
+        # Checking keys
+        self.assertEqual(
+            sorted([('satellite', 'satellite'), ('mission', 'mission')]),
+            sorted(list(zip(*ans))))
+        # And for the same contents
         self.assertEqual(ans[0]['mission'], ans[1]['mission'])
         self.assertEqual(ans[0]['satellite'].satellite_name[:-1],
                          ans[1]['satellite'].satellite_name[:-1])
@@ -356,9 +369,13 @@ class DBUtilsGetTests(TestSetup):
         ans = self.dbu.getAllInstruments()
         # check that this is what we expect
         self.assertEqual(2, len(ans))
-        self.assertEqual([('instrument', 'instrument'),
-                          ('satellite', 'satellite'),
-                          ('mission', 'mission')], zip(*ans))
+        # Expected keys...
+        self.assertEqual(
+            sorted([('instrument', 'instrument'),
+                    ('satellite', 'satellite'),
+                    ('mission', 'mission')]),
+            sorted(zip(*ans)))
+        # ...and matching values
         self.assertEqual(ans[0]['mission'], ans[1]['mission'])
         self.assertEqual(ans[0]['satellite'].satellite_name[:-1],
                          ans[1]['satellite'].satellite_name[:-1])
@@ -369,7 +386,7 @@ class DBUtilsGetTests(TestSetup):
         """getAllFileIds"""
         files = self.dbu.getAllFileIds()
         self.assertEqual(6681, len(files))
-        self.assertEqual(range(1, 6682), sorted(files))
+        self.assertEqual(list(range(1, 6682)), sorted(files))
 
     def test_getAllFileIds2(self):
         """getAllFileIds"""
@@ -381,7 +398,7 @@ class DBUtilsGetTests(TestSetup):
         """getAllFileIds"""
         files = self.dbu.getAllFileIds(limit=10)
         self.assertEqual(10, len(files))
-        self.assertEqual(range(1, 11), sorted(files))
+        self.assertEqual(list(range(1, 11)), sorted(files))
 
     def test_getAllFileIds2_limit(self):
         """getAllFileIds"""
@@ -420,14 +437,14 @@ class DBUtilsGetTests(TestSetup):
 
     def test_getFileFullPath(self):
         """getFileFullPath"""
-        self.assertEqual(u'/n/space_data/cda/rbsp/MagEphem/predicted/b/rbspb_pre_MagEphem_OP77Q_20130909_v1.0.0.txt',
+        self.assertEqual('/n/space_data/cda/rbsp/MagEphem/predicted/b/rbspb_pre_MagEphem_OP77Q_20130909_v1.0.0.txt',
                          self.dbu.getFileFullPath(1))
-        self.assertEqual(u'/n/space_data/cda/rbsp/MagEphem/predicted/b/rbspb_pre_MagEphem_OP77Q_20130909_v1.0.0.txt',
+        self.assertEqual('/n/space_data/cda/rbsp/MagEphem/predicted/b/rbspb_pre_MagEphem_OP77Q_20130909_v1.0.0.txt',
                          self.dbu.getFileFullPath('rbspb_pre_MagEphem_OP77Q_20130909_v1.0.0.txt'))
 
-        self.assertEqual(u'/n/space_data/cda/rbsp/rbspb/mageis_vc/level0/ect_rbspb_0377_364_02.ptp.gz',
+        self.assertEqual('/n/space_data/cda/rbsp/rbspb/mageis_vc/level0/ect_rbspb_0377_364_02.ptp.gz',
                          self.dbu.getFileFullPath(100))
-        self.assertEqual(u'/n/space_data/cda/rbsp/rbspb/mageis_vc/level0/ect_rbspb_0377_364_02.ptp.gz',
+        self.assertEqual('/n/space_data/cda/rbsp/rbspb/mageis_vc/level0/ect_rbspb_0377_364_02.ptp.gz',
                          self.dbu.getFileFullPath('ect_rbspb_0377_364_02.ptp.gz'))
 
     def test_getProcessFromInputProduct(self):
@@ -455,8 +472,8 @@ class DBUtilsGetTests(TestSetup):
         """getSatelliteMission"""
         val = self.dbu.getSatelliteMission(1)
         self.assertEqual(1, val.mission_id)
-        self.assertEqual(u'mageis_incoming', val.incoming_dir)
-        self.assertEqual(u'/n/space_data/cda/rbsp', val.rootdir)
+        self.assertEqual('mageis_incoming', val.incoming_dir)
+        self.assertEqual('/n/space_data/cda/rbsp', val.rootdir)
         self.assertRaises(NoResultFound, self.dbu.getSatelliteMission, 100)
         self.assertRaises(NoResultFound, self.dbu.getSatelliteMission, 'badval')
 
@@ -472,7 +489,7 @@ class DBUtilsGetTests(TestSetup):
 
     def test_getMissions(self):
         """getMissions"""
-        self.assertEqual([u'rbsp'], self.dbu.getMissions())
+        self.assertEqual(['rbsp'], self.dbu.getMissions())
 
     def test_getFileID(self):
         """getFileID"""
@@ -699,8 +716,8 @@ class DBUtilsGetTests(TestSetup):
         val = self.dbu.getFilesByDate([datetime.date(2013, 9, 10)] * 2, newest_version=True)
         self.assertEqual(129, len(val))
         filenames = sorted([v.filename for v in val])
-        ans = [u'ect_rbspa_0377_344_02.ptp.gz', 
-               u'ect_rbspa_0377_345_01.ptp.gz']
+        ans = ['ect_rbspa_0377_344_02.ptp.gz', 
+               'ect_rbspa_0377_345_01.ptp.gz']
         self.assertEqual(ans, filenames[:len(ans)])
 
     def test_getFilesByProduct(self):
@@ -742,12 +759,12 @@ class DBUtilsGetTests(TestSetup):
         val = self.dbu.getActiveInspectors()
         self.assertEqual(190, len(val))
         v2 = set([v[0] for v in val])
-        ans = set([u'/n/space_data/cda/rbsp/codes/inspectors/ect_L05_V1.0.0.py',
-                   u'/n/space_data/cda/rbsp/codes/inspectors/ect_L0_V1.0.0.py',
-                   u'/n/space_data/cda/rbsp/codes/inspectors/ect_L1_V1.0.0.py',
-                   u'/n/space_data/cda/rbsp/codes/inspectors/ect_L2_V1.0.0.py',
-                   u'/n/space_data/cda/rbsp/codes/inspectors/emfisis_V1.0.0.py',
-                   u'/n/space_data/cda/rbsp/codes/inspectors/rbsp_pre_MagEphem_insp.py'])
+        ans = set(['/n/space_data/cda/rbsp/codes/inspectors/ect_L05_V1.0.0.py',
+                   '/n/space_data/cda/rbsp/codes/inspectors/ect_L0_V1.0.0.py',
+                   '/n/space_data/cda/rbsp/codes/inspectors/ect_L1_V1.0.0.py',
+                   '/n/space_data/cda/rbsp/codes/inspectors/ect_L2_V1.0.0.py',
+                   '/n/space_data/cda/rbsp/codes/inspectors/emfisis_V1.0.0.py',
+                   '/n/space_data/cda/rbsp/codes/inspectors/rbsp_pre_MagEphem_insp.py'])
         self.assertEqual(ans, v2)
         v3 = set([v[-1] for v in val])
         self.assertEqual(set(range(1, 191)), v3)
@@ -1123,137 +1140,138 @@ class ProcessqueueTests(TestSetup):
     """Test all the processqueue functionality"""
 
     def add_files(self):
-        self.dbu.Processqueue.push([17, 18, 19, 20, 21])
+        self.dbu.ProcessqueuePush([17, 18, 19, 20, 21])
 
     def test_pq_getall(self):
-        """test self.Processqueue.getAll"""
-        self.assertEqual(0, self.dbu.Processqueue.len())
+        """test self.ProcessqueueGetAll"""
+        self.assertEqual(0, self.dbu.ProcessqueueLen())
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.assertEqual([17, 18, 19, 20, 21], self.dbu.Processqueue.getAll())
-        self.assertEqual(zip([17, 18, 19, 20, 21], [None] * 5), self.dbu.Processqueue.getAll(version_bump=True))
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.assertEqual([17, 18, 19, 20, 21], self.dbu.ProcessqueueGetAll())
+        self.assertEqual(list(zip([17, 18, 19, 20, 21], [None] * 5)),
+                         self.dbu.ProcessqueueGetAll(version_bump=True))
 
     def test_pq_getall2(self):
-        """test self.Processqueue.getAll"""
-        self.assertEqual(0, self.dbu.Processqueue.len())
-        self.assertFalse(self.dbu.Processqueue.getAll())
-        self.assertFalse(self.dbu.Processqueue.getAll(version_bump=True))
+        """test self.ProcessqueueGetAll"""
+        self.assertEqual(0, self.dbu.ProcessqueueLen())
+        self.assertFalse(self.dbu.ProcessqueueGetAll())
+        self.assertFalse(self.dbu.ProcessqueueGetAll(version_bump=True))
 
     def test_pq_flush(self):
-        """test self.Processqueue.flush"""
+        """test self.ProcessqueueFlush"""
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.dbu.Processqueue.flush()
-        self.assertEqual(0, self.dbu.Processqueue.len())
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueueFlush()
+        self.assertEqual(0, self.dbu.ProcessqueueLen())
 
     def test_pq_remove(self):
-        """test self.Processqueue.remove"""
+        """test self.ProcessqueueRemove"""
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.dbu.Processqueue.remove(20)
-        self.assertEqual(4, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueueRemove(20)
+        self.assertEqual(4, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         for v in [17, 18, 19, 21]:
             self.assertTrue(v in pq)
-        self.dbu.Processqueue.remove([17, 18])
-        self.assertEqual(2, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        self.dbu.ProcessqueueRemove([17, 18])
+        self.assertEqual(2, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         for v in [19, 21]:
             self.assertTrue(v in pq)
-        self.dbu.Processqueue.remove('ect_rbspb_0377_381_03.ptp.gz')
-        self.assertEqual(1, self.dbu.Processqueue.len())
-        self.assertEqual([21], self.dbu.Processqueue.getAll())
+        self.dbu.ProcessqueueRemove('ect_rbspb_0377_381_03.ptp.gz')
+        self.assertEqual(1, self.dbu.ProcessqueueLen())
+        self.assertEqual([21], self.dbu.ProcessqueueGetAll())
 
     def test_pq_push(self):
-        """test self.Processqueue.push"""
-        self.assertEqual(0, self.dbu.Processqueue.len())
-        self.dbu.Processqueue.push(20)
-        self.assertEqual(1, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        """test self.ProcessqueuePush"""
+        self.assertEqual(0, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueuePush(20)
+        self.assertEqual(1, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         self.assertTrue(20 in pq)
         # push a value that is not there
-        self.assertFalse(self.dbu.Processqueue.push(214442))
-        self.assertFalse(self.dbu.Processqueue.push(20))
-        self.assertEqual([17, 18, 19, 21], self.dbu.Processqueue.push([17, 18, 19, 20, 21]))
+        self.assertFalse(self.dbu.ProcessqueuePush(214442))
+        self.assertFalse(self.dbu.ProcessqueuePush(20))
+        self.assertEqual([17, 18, 19, 21], self.dbu.ProcessqueuePush([17, 18, 19, 20, 21]))
 
     def test_pq_push_MAX_ADD(self):
-        """test self.Processqueue.push"""
-        self.assertEqual(0, self.dbu.Processqueue.len())
-        self.dbu._processqueuePush([17, 18, 19, 20, 21], MAX_ADD=2)
-        self.assertEqual(5, self.dbu.Processqueue.len())
+        """test self.ProcessqueuePush"""
+        self.assertEqual(0, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueuePush([17, 18, 19, 20, 21], MAX_ADD=2)
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
 
     def test_pq_len(self):
-        """test self.Processqueue.len"""
-        self.assertEqual(0, self.dbu.Processqueue.len())
+        """test self.ProcessqueueLen"""
+        self.assertEqual(0, self.dbu.ProcessqueueLen())
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
 
     def test_pq_pop(self):
-        """test self.Processqueue.pop"""
+        """test self.ProcessqueuePop"""
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.dbu.Processqueue.pop(0)
-        self.assertEqual(4, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueuePop(0)
+        self.assertEqual(4, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         for v in [18, 19, 20, 21]:
             self.assertTrue(v in pq)
-        self.dbu.Processqueue.pop(2)
-        self.assertEqual(3, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        self.dbu.ProcessqueuePop(2)
+        self.assertEqual(3, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         for v in [18, 19, 21]:
             self.assertTrue(v in pq)
 
     def test_pq_pop_reverse(self):
-        """test self.Processqueue.pop with negative indices"""
+        """test self.ProcessqueuePop with negative indices"""
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.dbu.Processqueue.pop(-1)
-        self.assertEqual(4, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueuePop(-1)
+        self.assertEqual(4, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         for v in [17, 18, 19, 20]:
             self.assertTrue(v in pq)
-        self.dbu.Processqueue.pop(-2)
-        self.assertEqual(3, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        self.dbu.ProcessqueuePop(-2)
+        self.assertEqual(3, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         for v in [17, 18, 20]:
             self.assertTrue(v in pq)
 
     def test_pq_get(self):
-        """test self.Processqueue.get"""
+        """test self.ProcessqueueGet"""
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.assertEqual((17, None), self.dbu.Processqueue.get(0))
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.assertEqual((19, None), self.dbu.Processqueue.get(2))
-        self.assertEqual(5, self.dbu.Processqueue.len())
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.assertEqual((17, None), self.dbu.ProcessqueueGet(0))
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.assertEqual((19, None), self.dbu.ProcessqueueGet(2))
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
 
     def test_pq_get_reverse(self):
-        """test self.Processqueue.get with negative indices"""
+        """test self.ProcessqueueGet with negative indices"""
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.assertEqual((21, None), self.dbu.Processqueue.get(-1))
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.assertEqual((20, None), self.dbu.Processqueue.get(-2))
-        self.assertEqual(5, self.dbu.Processqueue.len())
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.assertEqual((21, None), self.dbu.ProcessqueueGet(-1))
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.assertEqual((20, None), self.dbu.ProcessqueueGet(-2))
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
 
     def test_pq_clean(self):
-        """test self.Processqueue.clean"""
+        """test self.ProcessqueueClean"""
         self.add_files()
-        self.assertEqual(5, self.dbu.Processqueue.len())
-        self.dbu.Processqueue.clean()
-        self.assertEqual(1, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        self.assertEqual(5, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueueClean()
+        self.assertEqual(1, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         self.assertTrue(17 in pq)
 
     def test_pq_rawadd(self):
-        """test self.Processqueue.rawadd"""
-        self.assertEqual(0, self.dbu.Processqueue.len())
-        self.dbu.Processqueue.rawadd(20)
-        self.assertEqual(1, self.dbu.Processqueue.len())
-        pq = self.dbu.Processqueue.getAll()
+        """test self.ProcessqueueRawadd"""
+        self.assertEqual(0, self.dbu.ProcessqueueLen())
+        self.dbu.ProcessqueueRawadd(20)
+        self.assertEqual(1, self.dbu.ProcessqueueLen())
+        pq = self.dbu.ProcessqueueGetAll()
         self.assertTrue(20 in pq)
-        self.dbu.Processqueue.rawadd(20000)
-        pq = self.dbu.Processqueue.pop(1)
+        self.dbu.ProcessqueueRawadd(20000)
+        pq = self.dbu.ProcessqueuePop(1)
         self.assertRaises(DButils.DBNoData, self.dbu.getFileID, pq)
 
 
@@ -1813,6 +1831,16 @@ class TestWithtestDB(unittest.TestCase):
 
         self.assertTrue(all([self.tempD in v for v in out]))
 
+    def test_getChildTreeNoOutput(self):
+        """getChildTree for processes w/o output"""
+        tmp = self.dbu.getChildTree(3)
+        ans = set([])
+        self.assertFalse(set(tmp).difference(ans))
+        # Explicitly make it null (it's empty string in the db)
+        self.dbu.getEntry('Process', 2).output_product = None
+        tmp = self.dbu.getChildTree(3)
+        self.assertFalse(set(tmp).difference(ans))
+
     def testUpdateCodeNewestVersion(self):
         """Set the newest version flag on a code"""
         #Test precondition
@@ -1863,7 +1891,7 @@ class TestWithtestDB(unittest.TestCase):
             self.dbu.editTable('code', 'run_test.py', 'relative_path',
                                my_str='newscripts', replace_str='scripts')
         self.assertEqual(
-            'Multiple rows match run_test.py', cm.exception.message)
+            'Multiple rows match run_test.py', str(cm.exception))
 
     def testEditTableReplaceAfter(self):
         """Test editTable with a replace only after a flag"""
@@ -1961,7 +1989,7 @@ class TestWithtestDB(unittest.TestCase):
         for kwargs, msg in test_cases:
             with self.assertRaises(ValueError) as cm:
                 self.dbu.editTable('code', 1, 'arguments', **kwargs)
-            self.assertEqual(msg, cm.exception.message)
+            self.assertEqual(msg, str(cm.exception))
 
         #Tests that don't fit exactly the same pattern
         with self.assertRaises(ValueError) as cm:
@@ -1969,20 +1997,20 @@ class TestWithtestDB(unittest.TestCase):
                                after_flag='-f')
         self.assertEqual(
             'Only use after_flag with arguments column in Code table.',
-            cm.exception.message)
+            str(cm.exception))
         with self.assertRaises(ValueError) as cm:
             self.dbu.editTable('process', 1, 'arguments', combine=True,
                                after_flag='-f')
         self.assertEqual(
             'Only use after_flag with arguments column in Code table.',
-            cm.exception.message)
+            str(cm.exception))
 
         with self.assertRaises(AttributeError) as cm:
             self.dbu.editTable('nonexistent', 1, 'process_name',
                                ins_after='L1', my_str='_new')
         self.assertEqual(
             "'DButils' object has no attribute 'Nonexistent'",
-            cm.exception.message)
+            str(cm.exception))
 
     def testAddUnixTimeTable(self):
         """Add the table with Unix time"""

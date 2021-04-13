@@ -8,7 +8,8 @@ import unittest
 import dbp_testing
 dbp_testing.add_scripts_to_path()
 
-from addFromConfig import configCheck, readconfig, _sectionCheck, _keysCheck, _keysRemoveExtra, _keysPresentCheck, _fileTest
+import dbprocessing.Utils
+from addFromConfig import configCheck, _sectionCheck, _keysCheck, _keysRemoveExtra, _keysPresentCheck, _fileTest
 
 class addFromConfig(unittest.TestCase):
     """Tests for addFromConfig script"""
@@ -92,7 +93,7 @@ class addFromConfig(unittest.TestCase):
     def test_sectionCheck_Valid(self):
         """Make sure no Exceptions are thrown for a valid config"""
         try:
-            conf = readconfig(os.path.join(
+            conf = dbprocessing.Utils.readconfig(os.path.join(
                 dbp_testing.testsdir, 'data', 'configs', 'testDB.conf'))
             _sectionCheck(conf)
         except Exception as e:
@@ -100,19 +101,19 @@ class addFromConfig(unittest.TestCase):
 
     def test_sectionCheck_MissingMission(self):
         """Make sure it notices Mission is missing"""
-        conf = readconfig(os.path.join(
+        conf = dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs', 'testDB_noMission.conf'))
         self.assertRaises(ValueError, _sectionCheck, conf)
 
     def test_sectionCheck_FakeSection(self):
         """Make sure it notices there's a fake section"""
-        conf = readconfig(os.path.join(
+        conf = dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs', 'testDB_fakeSection.conf'))
         self.assertRaises(ValueError, _sectionCheck, conf)
 
     def test_keysCheck_Valid(self):
         """Make sure no Exceptions are thrown for a valid config"""
-        conf = readconfig(os.path.join(
+        conf = dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs', 'testDB.conf'))
         try:
             for key in conf.keys():
@@ -122,36 +123,36 @@ class addFromConfig(unittest.TestCase):
 
     def test_keysCheck_MissingRequired(self):
         """Make sure it notices missing required keys"""
-        conf = readconfig(os.path.join(
+        conf = dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs', 'testDB_missingKey.conf'))
         self.assertRaises(ValueError, _keysCheck, conf, 'mission')
 
     def test_keysRemoveExtra(self):
         """Make sure it removes extra keys"""
-        validResult = readconfig(os.path.join(
+        validResult = dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs', 'testDB.conf'))
 
-        conf = _keysRemoveExtra(readconfig(os.path.join(
+        conf = _keysRemoveExtra(dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs', 'testDB_extraKey.conf')), 'mission')
         self.assertEqual(validResult['mission'], conf)
 
     def test_keysPresentCheck_Valid(self):
         try:
-            conf = readconfig(os.path.join(
+            conf = dbprocessing.Utils.readconfig(os.path.join(
                 dbp_testing.testsdir, 'data', 'configs', 'testDB.conf'))
             _keysPresentCheck(conf)
         except Exception as e:
             self.fail(e)
 
     def test_keysPresentCheck_Invalid(self):
-        conf = readconfig(os.path.join(
+        conf = dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs',
             'testDB_missingProduct.conf'))
         self.assertRaises(ValueError, _keysPresentCheck, conf)
 
     def test_keysPresentCheck_Trigger(self):
         try:
-            conf = readconfig(os.path.join(
+            conf = dbprocessing.Utils.readconfig(os.path.join(
                 dbp_testing.testsdir, 'data', 'configs', 'testDB_trigger.conf'))
             _keysPresentCheck(conf)
         except Exception as e:
@@ -171,8 +172,9 @@ class addFromConfig(unittest.TestCase):
 
     def test_NoInputs(self):
         """Create a process with no inputs"""
-        conf = readconfig(os.path.join(dbp_testing.testsdir, 'data', 'configs',
-                                       'testDB_processNoInputs.conf'))
+        conf = dbprocessing.Utils.readconfig(os.path.join(
+            dbp_testing.testsdir, 'data', 'configs',
+            'testDB_processNoInputs.conf'))
         self.assertEqual(
             {'code_active': 'True',
              'code_arguments': '',
@@ -194,6 +196,7 @@ class addFromConfig(unittest.TestCase):
             },
             conf['process_no_input'])
         configCheck(conf)
+
 
 if __name__ == "__main__":
     unittest.main()

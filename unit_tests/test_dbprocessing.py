@@ -47,6 +47,8 @@ class ProcessQueueTestsBase(unittest.TestCase, dbp_testing.AddtoDBMixin):
 
     def tearDown(self):
         """Remove the db and working tree"""
+        self.dbu.closeDB() # Before the database is removed...
+        del self.dbu
         # Unfortunately all the cleanup is in the destructor
         #del self.pq
         #shutil.rmtree(self.td)
@@ -84,6 +86,15 @@ class BuildChildrenTests(ProcessQueueTestsBase):
             rm.make_command_line(rundir='')
             actual.append(rm.cmdline)
         for i, (e, a) in enumerate(zip(expected, actual)):
+            # Sort the input files, identified by having 'data'
+            # in there (so not argument or output); the order
+            # of input files doesn't matter. (Don't change function inputs.)
+            idx_exp = [j for j in range(len(e)) if '/data/' in e[j]]
+            idx_act = [j for j in range(len(a)) if '/data/' in a[j]]
+            e = e[:idx_exp[0]] + sorted(e[idx_exp[0]:idx_exp[-1]+1]) \
+                + e[idx_exp[-1]+1:]
+            a = a[:idx_act[0]] + sorted(a[idx_act[0]:idx_act[-1]+1]) \
+                + a[idx_act[-1]+1:]
             self.assertEqual(e, a, 'Command {}'.format(i))
 
     def testSimple(self):
@@ -497,7 +508,7 @@ class ProcessQueueTests(ProcessQueueTestsBase):
         l0pid = self.addProduct('level 0')
         fid = self.addFile('level_0_20120101_v1.0.0', l0pid)
         self.assertEqual(1, self.pq._reprocessBy())
-        self.assertEqual((fid, None), self.dbu.Processqueue.pop())
+        self.assertEqual((fid, None), self.dbu.ProcessqueuePop())
 
 
 class GetRequiredProductsTests(ProcessQueueTestsBase):

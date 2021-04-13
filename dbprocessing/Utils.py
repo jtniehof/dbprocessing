@@ -4,10 +4,12 @@ Class to hold random utilities of use throughout this code
 """
 from __future__ import print_function
 
+
+from ast import literal_eval as make_tuple
 try:
-    import ConfigParser
-except ImportError:
-    import configparser as ConfigParser
+    import configparser
+except ImportError: # Py2
+    import ConfigParser as configparser
 import collections
 import datetime
 import os
@@ -131,7 +133,7 @@ def chunker(seq, size):
     :rtype: tuple
     """
 
-    return (seq[pos:pos + size] for pos in xrange(0, len(seq), size))
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 
 def unique(seq):
@@ -178,7 +180,7 @@ def daterange_to_dates(daterange):
     """
 
     return [daterange[0] + datetime.timedelta(days=val) for val in
-            xrange((daterange[1] - daterange[0]).days + 1)]
+            range((daterange[1] - daterange[0]).days + 1)]
 
 
 def parseDate(inval):
@@ -223,7 +225,7 @@ def flatten(l):
     :rtype: list
     """
     for el in l:
-        if isinstance(el, collections.Iterable) and not isinstance(el, basestring):
+        if isinstance(el, collections.Iterable) and not isinstance(el, str_classes):
             for sub in flatten(el):
                 yield sub
         else:
@@ -366,7 +368,7 @@ def dirSubs(path, filename, utc_file_date, utc_start_time, version, dbu=None):
     if '{S}' in path:
         path = path.replace('{S}', utc_start_time.strftime('%S'))
     if '{VERSION}' in path:
-        if isinstance(version, (unicode, str)):
+        if isinstance(version, str_classes):
             version = Version.Version.fromString(version)
         path = path.replace('{VERSION}', '{0}'.format(str(version)))
     if '{DATE}' in path:
@@ -426,11 +428,20 @@ def readconfig(config_filepath):
     :return: Dictionary of key value pairs from config files
     :rtype: dict
     """
-    cfg = ConfigParser.SafeConfigParser()
+    # "Safe" deprecated in 3.2, but still present, so version is only way
+    #  to avoid stepping on the deprecation. "Safe" preferred before 3.2
+    cfg = (configparser.SafeConfigParser if sys.version_info[:2] < (3, 2)
+           else configparser.ConfigParser)()
     cfg.read(config_filepath)
     sections = cfg.sections()
     # Read each parameter in turn
     ans = { }
     for section in sections:
         ans[section] = dict(cfg.items(section))
+        for item in ans[section]:
+            if 'input' in item:
+                if '(' in ans[section][item]:
+                    ans[section][item] = make_tuple(ans[section][item])
+                else:
+                    ans[section][item] = (ans[section][item], 0, 0)
     return ans

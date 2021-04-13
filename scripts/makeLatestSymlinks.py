@@ -7,7 +7,7 @@ in a given directory make symlinks to all the newest versions of files into anot
 from __future__ import print_function
 
 import argparse
-import ConfigParser
+import collections
 import datetime
 import glob
 from pprint import pprint
@@ -20,6 +20,8 @@ import warnings
 from dateutil import parser as dup
 
 from dbprocessing import inspector
+import dbprocessing.Utils
+import dbprocessing.DButils
 
 
 ################################################################
@@ -62,8 +64,9 @@ def cull_to_newest(files, options=None):
     ans = []
     # make a set of all the file bases
     tmp = [getBaseVersion(f) for f in files]
-    bases = zip(*tmp)[0]
-    versions = zip(*tmp)[1]
+    tmp = list(zip(*tmp))
+    bases = tmp[0]
+    versions = tmp[1]
     uniq_bases = list(set(bases))
     while uniq_bases:
         val = uniq_bases.pop(0)
@@ -111,9 +114,11 @@ def make_symlinks(files, files_out, outdir, linkdirs, mode, options):
     """
     for all the files make symlinks into outdir
     """
-    if not hasattr(files, '__iter__'):
+    if isinstance(files, dbprocessing.DButils.str_classes) \
+           or not isinstance(files, collections.Iterable):
         files = [files]
-    if not hasattr(files_out, '__iter__'):
+    if isinstance(files_out, dbprocessing.DButils.str_classes) \
+           or not isinstance(files_out, collections.Iterable):
         files_out = [files_out]
     # if files_out then cull the files to get rid of the ones
     for f in files:
@@ -154,37 +159,31 @@ def delete_unneeded(files, files_out, options):
 def readconfig(config_filepath):
     expected_items = ['sourcedir', 'destdir', 'deltadays', 'startdate',
                       'enddate', 'filter', 'linkdirs', 'outmode', 'nodate']
-    # Create a ConfigParser object, to read the config file
-    cfg=ConfigParser.SafeConfigParser()
-    cfg.read(config_filepath)
-    sections = cfg.sections()
     # Read each parameter in turn
-    ans = {}
-    for section in sections:
-        ans[section] = dict(cfg.items(section))
+    ans = dbprocessing.Utils.readconfig(config_filepath)
     # make sure that for each section the reqiured items are present
     for k in ans:
         for ei in expected_items:
             if ei not in ans[k]:
-                raise(ValueError('Section [{0}] does not have required key "{1}"'.format(k, ei)))
+                raise ValueError('Section [{0}] does not have required key "{1}"'.format(k, ei))
     # check that we can parse the dates
     for k in ans:
         try:
             tmp = dup.parse(ans[k]['startdate'])
         except:
-            raise(ValueError('Date "{0}" in [{1}][{2}] is not valid'.format(ans[k]['startdate'], k, 'startdate',)))
+            raise ValueError('Date "{0}" in [{1}][{2}] is not valid'.format(ans[k]['startdate'], k, 'startdate',))
         try:
             tmp = dup.parse(ans[k]['enddate'])
         except:
-            raise(ValueError('Date "{0}" in [{1}][{2}] is not valid'.format(ans[k]['enddate'], k, 'enddate')))
+            raise ValueError('Date "{0}" in [{1}][{2}] is not valid'.format(ans[k]['enddate'], k, 'enddate'))
         try:
             tmp = int(ans[k]['deltadays'])
         except:
-            raise(ValueError('Invalid "{0}" in [{1}][{2}]'.format(ans[k]['deltadays'], k, 'deltadays')))
+            raise ValueError('Invalid "{0}" in [{1}][{2}]'.format(ans[k]['deltadays'], k, 'deltadays'))
         try:
             tmp = int(ans[k]['outmode'])
         except:
-            raise(ValueError('Invalid "{0}" in [{1}][{2}]'.format(ans[k]['outmode'], k, 'outmode')))
+            raise ValueError('Invalid "{0}" in [{1}][{2}]'.format(ans[k]['outmode'], k, 'outmode'))
     for k in ans:
         ans[k]['sourcedir'] = os.path.abspath(os.path.expanduser(os.path.expandvars(ans[k]['sourcedir'])))
         ans[k]['destdir']   = os.path.abspath(os.path.expanduser(os.path.expandvars(ans[k]['destdir'])))
@@ -266,3 +265,23 @@ if __name__ == '__main__':
             #if options.verbose: print files_out
             make_symlinks(files, files_out, config[sec]['destdir'], config[sec]['linkdirs'], config[sec]['outmode'], options)
 
+# Example configuration file, copy and remove leading "##" to use
+##[isois]
+### Directory containing the data files
+##sourcedir = ~/dbp_py3/data/ISOIS/level1/
+### Directory to make the symlinks in
+##destdir = ~/tmp/
+### First date to link
+##startdate = 2010-01-01
+### Last date to link
+##enddate = 2021-01-01
+### Number of days before present not to link (e.g. to keep internal-only)
+##deltadays = 60
+### glob for files to match
+##filter = psp_isois_l1-sc-hk_*.cdf
+### Link directories as well as files
+##linkdirs = True
+### Mode to use when making output directory
+##outmode = 775
+### Do not limit based on date (i.e., ignore date options; they're still required)
+##nodate = False
