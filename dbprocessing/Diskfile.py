@@ -145,6 +145,8 @@ def calcDigest(infile):
 
     """
     try:
+        if not os.path.isfile(infile):
+            raise IOError
         cmd = "sha1sum " + infile
         p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
