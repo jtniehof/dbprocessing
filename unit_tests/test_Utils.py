@@ -249,6 +249,9 @@ class UtilsTests(unittest.TestCase):
             'mission': {
                 'incoming_dir': 'L0',
                 'rootdir': '/home/myles/dbprocessing/test_DB',
+                'errordir': 'error',
+                'inspectordir': 'inspector',
+                'codedir': 'code',
                 'mission_name': 'testDB'},
             'instrument': {'instrument_name': 'rot13'},
             'process_rot13_L1-L2': {'code_cpu': '1',

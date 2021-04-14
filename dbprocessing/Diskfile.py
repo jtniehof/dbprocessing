@@ -154,7 +154,7 @@ def calcDigest(infile):
     except IOError:
         raise DigestError("File not found: {0}".format(infile))
         
-    result = out.split()[0]
+    result = out.split()[0].decode('ascii')
     DBlogging.dblogger.debug("digest calculated: {0}, file: {1} ".format(result, infile))
 
     return result

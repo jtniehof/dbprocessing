@@ -20,7 +20,7 @@ class addFromConfig(unittest.TestCase):
     def test_readconfig(self):
         """Does readconfig match the expected output"""
 
-        conf = readconfig(os.path.join(
+        conf = dbprocessing.Utils.readconfig(os.path.join(
             dbp_testing.testsdir, 'data', 'configs', 'testDB.conf'))
         # Regression testing, just copy-pasted from the actual output
         ans = {

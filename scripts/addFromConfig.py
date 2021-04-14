@@ -17,18 +17,12 @@
 # <- add the prod
 # <- create the inst_prod link
 
-import ConfigParser
 import collections
 import os
 import shutil
 import sys
 import tempfile
-<<<<<<< postgresql
-from optparse import OptionParser
-from ast import literal_eval as make_tuple
-=======
 import argparse
->>>>>>> master
 
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -94,14 +88,8 @@ def _keysCheck(conf, section):
     for k in keys:
         if k.startswith('required_input') or k.startswith('optional_input'):
             continue
-<<<<<<< postgresql
-        else:
-            if k not in conf[section]:
-                raise (ValueError('Required key: "{0}" was not found in [{1}] section'.format(k, section)))
-=======
         if k not in conf[section]:
             raise ValueError('Required key: "{0}" was not found in [{1}] section'.format(k, section))
->>>>>>> master
 
 
 def _keysRemoveExtra(conf, section):
@@ -329,7 +317,6 @@ if __name__ == "__main__":
         # recheck the temp file
         conf = dbprocessing.Utils.readconfig(tmpf.name)
         configCheck(conf)
-<<<<<<< postgresql
         ### The following is commented out as a Postgres database is implemented.
         # do all our work on a temp version of the DB, if it all works, move tmp on top of existing
         #   if it fails just delete the tmp and do nothing
@@ -345,7 +332,6 @@ if __name__ == "__main__":
         finally:
             pass
             # os.remove(tmp_db.name)
-=======
         if os.path.isfile(options.mission): # sqlite
             # do all our work on a temp version of the DB, if it all works, move tmp on top of existing
             #   if it fails just delete the tmp and do nothing
@@ -362,6 +348,5 @@ if __name__ == "__main__":
                 os.remove(tmp_db.name)
         else: # postgresql
             addStuff(conf, options)
->>>>>>> master
     finally:
         os.remove(tmpf.name)

@@ -140,7 +140,6 @@ class AddtoDBMixin(object):
         Assumes self.td has the test/temp directory path (str),
         will populate self.instrument_ids for a list of instruments.
         """
-
         if os.path.exists(os.path.join(self.td, 'emptyDB.sqlite')):
             dbu = dbprocessing.DButils.DButils(os.path.join(
                 self.td, 'emptyDB.sqlite'))

@@ -47,16 +47,17 @@ class ProcessQueueTestsBase(unittest.TestCase, dbp_testing.AddtoDBMixin):
 
     def tearDown(self):
         """Remove the db and working tree"""
-        self.dbu.closeDB() # Before the database is removed...
-        del self.dbu
         # Unfortunately all the cleanup is in the destructor
         #del self.pq
         #shutil.rmtree(self.td)
 
-        for table in reversed(self.dbu.metadata.sorted_tables):
-            self.dbu.session.execute(table.delete());
-            self.dbu.session.commit()
+        if 'PGDATABASE' in os.environ.keys():
+            for table in reversed(self.dbu.metadata.sorted_tables):
+                self.dbu.session.execute(table.delete());
+                self.dbu.session.commit()
 
+            self.dbu.closeDB() # Before the database is removed...
+        del self.dbu
         super(ProcessQueueTestsBase, self).tearDown()
 
 
