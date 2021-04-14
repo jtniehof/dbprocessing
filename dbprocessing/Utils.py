@@ -225,7 +225,7 @@ def flatten(l):
     :rtype: list
     """
     for el in l:
-        if isinstance(el, collections.abc.Iterable) and not isinstance(el, str_classes):
+        if isinstance(el, collections.Iterable) and not isinstance(el, str_classes):
             for sub in flatten(el):
                 yield sub
         else:
